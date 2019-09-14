@@ -15,7 +15,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	args := &common.ArgGrep{"712.*"}
+	args := &common.ArgGrep{[]string{"machine.i.log"}, "712.*"}
 	var reply common.ReplyGrepList
 	err = client.Call("RpcClient.GrepLogFile", args, &reply)
 	if err == nil {
@@ -25,9 +25,14 @@ func main() {
 				continue
 			}
 
-			fmt.Printf("Host %v\n", replyGrep.Host)
-			for _, line := range replyGrep.Lines {
-				fmt.Printf("\tLine %v: %v\n", line.LineNum, line.LineStr)
+			fmt.Printf("Host %v got %v lines\n", replyGrep.Host, replyGrep.LineCount)
+			for _, file := range replyGrep.Files {
+				fmt.Printf("\t%v\n", file.Path)
+				fmt.Printf("\t===============\n")
+				for _, line := range file.Lines {
+					fmt.Printf("\tLine %v: %v\n", line.LineNum, line.LineStr)
+				}
+				fmt.Printf("\n")
 			}
 		}
 	}

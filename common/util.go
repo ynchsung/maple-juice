@@ -17,7 +17,12 @@ type Line struct {
 	LineStr string
 }
 
-func GrepFile(path string, regex string) ([]Line, error) {
+type GrepInfo struct {
+	Path  string
+	Lines []Line
+}
+
+func GrepFile(path string, regex string) (*GrepInfo, error) {
 	re := regexp.MustCompile(regex)
 
 	fp, err := os.Open(path)
@@ -27,12 +32,12 @@ func GrepFile(path string, regex string) ([]Line, error) {
 	defer fp.Close()
 
 	scanner := bufio.NewScanner(fp)
-	l, lines := 0, []Line{}
+	l, ret := 0, &GrepInfo{path, []Line{}}
 	for scanner.Scan() {
 		l += 1
 		text := scanner.Text()
 		if re.MatchString(text) {
-			lines = append(lines, Line{l, text})
+			ret.Lines = append(ret.Lines, Line{l, text})
 		}
 	}
 
@@ -40,5 +45,5 @@ func GrepFile(path string, regex string) ([]Line, error) {
 		return nil, err
 	}
 
-	return lines, nil
+	return ret, nil
 }

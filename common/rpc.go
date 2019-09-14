@@ -19,7 +19,7 @@ func (t *RpcClient) GrepLogFile(args *ArgGrep, reply *ReplyGrepList) error {
 	for _, host := range Cfg.ClusterInfo.Hosts {
 		client, err := rpc.DialHTTP("tcp", host.Host+host.Port)
 		var divCall *rpc.Call = nil
-		r := &ReplyGrep{host.Host, true, "", nil}
+		r := &ReplyGrep{host.Host, true, "", 0, []*GrepInfo{}}
 		if err == nil {
 			divCall = client.Go("RpcS2S.GrepLogFile", args, r, nil)
 		} else {
@@ -47,12 +47,17 @@ func (t *RpcClient) GrepLogFile(args *ArgGrep, reply *ReplyGrepList) error {
 }
 
 func (t *RpcS2S) GrepLogFile(args *ArgGrep, reply *ReplyGrep) error {
-	var err error = nil
-	reply.Lines, err = GrepFile(Cfg.LogPath, args.Request)
-	if err != nil {
-		reply.Host = Cfg.Self.Host
-		reply.Flag = false
-		reply.ErrStr = err.Error()
+	reply.Host = Cfg.Self.Host
+	reply.Flag = true
+	reply.ErrStr = ""
+	reply.LineCount = 0
+	reply.Files = []*GrepInfo{}
+	for _, path := range args.Paths {
+		info, err := GrepFile(path, args.Regex)
+		if err == nil {
+			reply.LineCount += len(info.Lines)
+			reply.Files = append(reply.Files, info)
+		}
 	}
 
 	return nil

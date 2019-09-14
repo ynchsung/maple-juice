@@ -1,5 +1,6 @@
 package common
 
 type ArgGrep struct {
-	Request string
+	Paths []string
+	Regex string
 }
