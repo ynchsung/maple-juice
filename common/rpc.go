@@ -1,7 +1,6 @@
 package common
 
 import (
-	"fmt"
 	"log"
 	"net/rpc"
 )
@@ -12,6 +11,7 @@ type Args struct {
 
 type ReplyGrepObj struct {
 	Host  string
+	Flag  bool
 	Lines []Line
 }
 
@@ -41,24 +41,21 @@ func (t *RpcClient) GrepLogFile(args *Args, reply *ReplyGrepList) error {
 	)
 
 	for _, addr := range Cfg.Hosts {
+		r := &ReplyGrepObj{addr, true, nil}
 		client, err := rpc.DialHTTP("tcp", addr+Cfg.Port)
-		if err != nil {
-			clients = append(clients, nil)
-			replyList = append(replyList, nil)
-			continue
+		if err == nil {
+			divCalls = append(divCalls, client.Go("RpcS2S.GrepLogFile", args, r, nil))
+		} else {
+			clients = nil
+			r.Flag = false
 		}
 
-		r := new(ReplyGrepObj)
-		r.Host = addr
 		clients = append(clients, client)
 		replyList = append(replyList, r)
-
-		divCalls = append(divCalls, client.Go("RpcS2S.GrepLogFile", args, r, nil))
 	}
 
-	for i, addr := range Cfg.Hosts {
+	for i, _ := range Cfg.Hosts {
 		if clients[i] == nil {
-			fmt.Printf("Host %v: not available\n", addr)
 			continue
 		}
 
