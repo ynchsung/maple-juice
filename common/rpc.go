@@ -1,23 +1,8 @@
 package common
 
 import (
-	"log"
 	"net/rpc"
 )
-
-type Args struct {
-	Request string
-}
-
-type ReplyGrepObj struct {
-	Host  string
-	Flag  bool
-	Lines []Line
-}
-
-type ReplyGrepList struct {
-	Replys []ReplyGrepObj
-}
 
 type RpcClient struct {
 }
@@ -25,55 +10,50 @@ type RpcClient struct {
 type RpcS2S struct {
 }
 
-func (t *RpcClient) GrepLogFile(args *Args, reply *ReplyGrepList) error {
-	var err error
-	defer func() {
-		if err != nil {
-			log.Printf("RPC Client GrepLogFile error: %v", err)
-		}
-	}()
-
-	// FIXME
+func (t *RpcClient) GrepLogFile(args *ArgGrep, reply *ReplyGrepList) error {
 	var (
-		clients   []*rpc.Client
-		divCalls  []*rpc.Call
-		replyList []*ReplyGrepObj
+		clients  []*rpc.Client
+		divCalls []*rpc.Call
 	)
 
-	for _, addr := range Cfg.Hosts {
-		client, err := rpc.DialHTTP("tcp", addr+Cfg.Port)
+	for _, host := range Cfg.ClusterInfo.Hosts {
+		client, err := rpc.DialHTTP("tcp", host.Host+host.Port)
 		var divCall *rpc.Call = nil
-		r := &ReplyGrepObj{addr, true, nil}
+		r := &ReplyGrep{host.Host, true, "", nil}
 		if err == nil {
 			divCall = client.Go("RpcS2S.GrepLogFile", args, r, nil)
 		} else {
 			client = nil
 			r.Flag = false
+			r.ErrStr = err.Error()
 		}
 
 		clients = append(clients, client)
 		divCalls = append(divCalls, divCall)
-		replyList = append(replyList, r)
+		*reply = append(*reply, r)
 	}
 
-	for i, _ := range Cfg.Hosts {
+	for i, _ := range Cfg.ClusterInfo.Hosts {
 		if clients[i] != nil {
-			_ = <-divCalls[i].Done
+			replyCall := <-divCalls[i].Done
+			if replyCall.Error != nil {
+				(*reply)[i].Flag = false
+				(*reply)[i].ErrStr = replyCall.Error.Error()
+			}
 		}
-
-		reply.Replys = append(reply.Replys, *replyList[i])
 	}
-	return err
+
+	return nil
 }
 
-func (t *RpcS2S) GrepLogFile(args *Args, reply *ReplyGrepObj) error {
-	var err error
-	defer func() {
-		if err != nil {
-			log.Printf("RPC S2S GrepLogFile error: %v", err)
-		}
-	}()
-
+func (t *RpcS2S) GrepLogFile(args *ArgGrep, reply *ReplyGrep) error {
+	var err error = nil
 	reply.Lines, err = GrepFile(Cfg.LogPath, args.Request)
-	return err
+	if err != nil {
+		reply.Host = Cfg.Self.Host
+		reply.Flag = false
+		reply.ErrStr = err.Error()
+	}
+
+	return nil
 }

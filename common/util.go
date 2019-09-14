@@ -6,6 +6,12 @@ import (
 	"regexp"
 )
 
+/* GrepFile
+ * use regular expression to grep lines from a file
+ * Args:	path, regex
+ * Return:	slice of Line, error
+ */
+
 type Line struct {
 	LineNum int
 	LineStr string

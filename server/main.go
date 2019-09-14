@@ -12,7 +12,7 @@ import (
 )
 
 func InitServer(path string) {
-	// read configure file
+	// read general configure file
 	if err := common.ReadConfig(path); err != nil {
 		fmt.Printf("Fail to read configure file: %v", err)
 		os.Exit(1)
@@ -38,11 +38,17 @@ func main() {
 
 	rpc.HandleHTTP()
 
-	l, e := net.Listen("tcp", common.Cfg.Port)
+	l, e := net.Listen("tcp", common.Cfg.Self.Port)
 	if e != nil {
 		log.Fatal("Listen error:", e)
 		os.Exit(1)
 	}
-	log.Printf("Server start, port %v", common.Cfg.Port)
+
+	log.Printf("Server start, host %v, port %v, machine ID %v",
+		common.Cfg.Self.Host,
+		common.Cfg.Self.Port,
+		common.Cfg.Self.MachineID,
+	)
+
 	http.Serve(l, nil)
 }

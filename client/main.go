@@ -15,18 +15,18 @@ func main() {
 		os.Exit(1)
 	}
 
-	args := &common.Args{"712.*"}
+	args := &common.ArgGrep{"712.*"}
 	var reply common.ReplyGrepList
 	err = client.Call("RpcClient.GrepLogFile", args, &reply)
 	if err == nil {
-		for _, replyGrepObj := range reply.Replys {
-			if !replyGrepObj.Flag {
-				fmt.Printf("Host %v is not available\n", replyGrepObj.Host)
+		for _, replyGrep := range reply {
+			if !replyGrep.Flag {
+				fmt.Printf("Host %v error: %v\n", replyGrep.Host, replyGrep.ErrStr)
 				continue
 			}
 
-			fmt.Printf("Host %v\n", replyGrepObj.Host)
-			for _, line := range replyGrepObj.Lines {
+			fmt.Printf("Host %v\n", replyGrep.Host)
+			for _, line := range replyGrep.Lines {
 				fmt.Printf("\tLine %v: %v\n", line.LineNum, line.LineStr)
 			}
 		}
