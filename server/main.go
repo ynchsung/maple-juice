@@ -43,19 +43,5 @@ func main() {
 		log.Fatal("Listen error:", e)
 	}
 	log.Printf("Server start, port %v", common.Cfg.Port)
-	go http.Serve(l, nil)
-
-	client, err := rpc.DialHTTP("tcp", "172.22.154.175"+common.Cfg.Port)
-	if err != nil {
-		log.Fatal("dialing:", err)
-	}
-
-	args := &common.Args{"712.*"}
-	var reply common.Reply
-	err = client.Call("RpcClient.GrepLogFile", args, &reply)
-	if err == nil {
-		for i, idx := range reply.LineIndices {
-			fmt.Printf("Get %v: %v\n", idx, reply.Lines[i])
-		}
-	}
+	http.Serve(l, nil)
 }
