@@ -7,6 +7,7 @@ import (
 type Config struct {
 	Port    string
 	LogPath string
+	Hosts   []string
 }
 
 var Cfg Config
@@ -19,5 +20,6 @@ func ReadConfig(path string) error {
 
 	Cfg.Port = tmp.Section("server").Key("port").String()
 	Cfg.LogPath = tmp.Section("paths").Key("log").String()
+	Cfg.Hosts = append(Cfg.Hosts, "172.22.154.175", "172.22.156.175")
 	return nil
 }

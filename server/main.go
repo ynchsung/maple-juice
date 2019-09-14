@@ -28,15 +28,20 @@ func InitServer(path string) {
 func main() {
 	InitServer("server.ini")
 
-	// register rpc
-	ycsw := new(common.YCSW)
-	rpc.Register(ycsw)
+	// register rpc client
+	rpcClient := new(common.RpcClient)
+	rpc.Register(rpcClient)
+
+	// register rpc server to server
+	rpcS2S := new(common.RpcS2S)
+	rpc.Register(rpcS2S)
+
 	rpc.HandleHTTP()
+
 	l, e := net.Listen("tcp", common.Cfg.Port)
 	if e != nil {
 		log.Fatal("Listen error:", e)
 	}
-
 	log.Printf("Server start, port %v", common.Cfg.Port)
 	go http.Serve(l, nil)
 
@@ -47,7 +52,7 @@ func main() {
 
 	args := &common.Args{"712.*"}
 	var reply common.Reply
-	err = client.Call("YCSW.GrepLogFile", args, &reply)
+	err = client.Call("RpcClient.GrepLogFile", args, &reply)
 	if err == nil {
 		for i, idx := range reply.LineIndices {
 			fmt.Printf("Get %v: %v\n", idx, reply.Lines[i])
