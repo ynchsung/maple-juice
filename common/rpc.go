@@ -41,25 +41,26 @@ func (t *RpcClient) GrepLogFile(args *Args, reply *ReplyGrepList) error {
 	)
 
 	for _, addr := range Cfg.Hosts {
-		r := &ReplyGrepObj{addr, true, nil}
 		client, err := rpc.DialHTTP("tcp", addr+Cfg.Port)
+		var divCall *rpc.Call = nil
+		r := &ReplyGrepObj{addr, true, nil}
 		if err == nil {
-			divCalls = append(divCalls, client.Go("RpcS2S.GrepLogFile", args, r, nil))
+			divCall = client.Go("RpcS2S.GrepLogFile", args, r, nil)
 		} else {
-			clients = nil
+			client = nil
 			r.Flag = false
 		}
 
 		clients = append(clients, client)
+		divCalls = append(divCalls, divCall)
 		replyList = append(replyList, r)
 	}
 
 	for i, _ := range Cfg.Hosts {
-		if clients[i] == nil {
-			continue
+		if clients[i] != nil {
+			_ = <-divCalls[i].Done
 		}
 
-		_ = <-divCalls[i].Done
 		reply.Replys = append(reply.Replys, *replyList[i])
 	}
 	return err

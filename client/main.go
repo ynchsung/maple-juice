@@ -20,6 +20,11 @@ func main() {
 	err = client.Call("RpcClient.GrepLogFile", args, &reply)
 	if err == nil {
 		for _, replyGrepObj := range reply.Replys {
+			if !replyGrepObj.Flag {
+				fmt.Printf("Host %v is not available\n", replyGrepObj.Host)
+				continue
+			}
+
 			fmt.Printf("Host %v\n", replyGrepObj.Host)
 			for _, line := range replyGrepObj.Lines {
 				fmt.Printf("\tLine %v: %v\n", line.LineNum, line.LineStr)
