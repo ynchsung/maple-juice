@@ -1,22 +1,29 @@
 package common
 
+import (
+	"log"
+)
+
 type Args struct {
-	A int
-	B int
+	Request string
 }
 
 type Reply struct {
-	A int
-	B int
+	LineIndices []int
+	Lines       []string
 }
 
 type YCSW struct {
-	A int
-	B int
 }
 
-func (t *YCSW) Test(args *Args, reply *Reply) error {
-	reply.A = args.B * args.B
-	reply.B = args.A * args.A
-	return nil
+func (t *YCSW) GrepLogFile(args *Args, reply *Reply) error {
+	var err error
+	defer func() {
+		if err != nil {
+			log.Printf("GrepLogFile error: %v", err)
+		}
+	}()
+
+	reply.LineIndices, reply.Lines, err = GrepFile(Cfg.LogPath, args.Request)
+	return err
 }

@@ -1,4 +1,4 @@
-package main
+package common
 
 import (
 	"gopkg.in/ini.v1"
@@ -9,7 +9,7 @@ type Config struct {
 	LogPath string
 }
 
-var cfg Config
+var Cfg Config
 
 func ReadConfig(path string) error {
 	tmp, err := ini.Load(path)
@@ -17,7 +17,7 @@ func ReadConfig(path string) error {
 		return err
 	}
 
-	cfg.Port = tmp.Section("server").Key("port").String()
-	cfg.LogPath = tmp.Section("paths").Key("log").String()
+	Cfg.Port = tmp.Section("server").Key("port").String()
+	Cfg.LogPath = tmp.Section("paths").Key("log").String()
 	return nil
 }
