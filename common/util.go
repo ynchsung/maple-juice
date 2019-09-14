@@ -6,29 +6,33 @@ import (
 	"regexp"
 )
 
-func GrepFile(path string, regex string) ([]int, []string, error) {
+type Line struct {
+	LineNum int
+	LineStr string
+}
+
+func GrepFile(path string, regex string) ([]Line, error) {
 	re := regexp.MustCompile(regex)
 
 	fp, err := os.Open(path)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	defer fp.Close()
 
 	scanner := bufio.NewScanner(fp)
-	l, lineIndices, lines := 0, []int{}, []string{}
+	l, lines := 0, []Line{}
 	for scanner.Scan() {
 		l += 1
 		text := scanner.Text()
 		if re.MatchString(text) {
-			lineIndices = append(lineIndices, l)
-			lines = append(lines, text)
+			lines = append(lines, Line{l, text})
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	return lineIndices, lines, nil
+	return lines, nil
 }

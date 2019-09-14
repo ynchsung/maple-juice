@@ -10,9 +10,13 @@ type Args struct {
 	Request string
 }
 
-type Reply struct {
-	LineIndices []int
-	Lines       []string
+type ReplyGrepObj struct {
+	Host  string
+	Lines []Line
+}
+
+type ReplyGrepList struct {
+	Replys []ReplyGrepObj
 }
 
 type RpcClient struct {
@@ -21,7 +25,7 @@ type RpcClient struct {
 type RpcS2S struct {
 }
 
-func (t *RpcClient) GrepLogFile(args *Args, reply *Reply) error {
+func (t *RpcClient) GrepLogFile(args *Args, reply *ReplyGrepList) error {
 	var err error
 	defer func() {
 		if err != nil {
@@ -31,22 +35,23 @@ func (t *RpcClient) GrepLogFile(args *Args, reply *Reply) error {
 
 	// FIXME
 	var (
-		clients  []*rpc.Client
-		divCalls []*rpc.Call
-		replys   []*Reply
+		clients   []*rpc.Client
+		divCalls  []*rpc.Call
+		replyList []*ReplyGrepObj
 	)
 
 	for _, addr := range Cfg.Hosts {
 		client, err := rpc.DialHTTP("tcp", addr+Cfg.Port)
 		if err != nil {
 			clients = append(clients, nil)
-			replys = append(replys, nil)
+			replyList = append(replyList, nil)
 			continue
 		}
 
-		r := new(Reply)
+		r := new(ReplyGrepObj)
+		r.Host = addr
 		clients = append(clients, client)
-		replys = append(replys, r)
+		replyList = append(replyList, r)
 
 		divCalls = append(divCalls, client.Go("RpcS2S.GrepLogFile", args, r, nil))
 	}
@@ -58,16 +63,12 @@ func (t *RpcClient) GrepLogFile(args *Args, reply *Reply) error {
 		}
 
 		_ = <-divCalls[i].Done
-		fmt.Printf("Host %v:\n", addr)
-		for j, idx := range replys[i].LineIndices {
-			fmt.Printf("\tLine %v: %v\n", idx, replys[i].Lines[j])
-		}
-		fmt.Printf("\n=====\n")
+		reply.Replys = append(reply.Replys, *replyList[i])
 	}
 	return err
 }
 
-func (t *RpcS2S) GrepLogFile(args *Args, reply *Reply) error {
+func (t *RpcS2S) GrepLogFile(args *Args, reply *ReplyGrepObj) error {
 	var err error
 	defer func() {
 		if err != nil {
@@ -75,6 +76,6 @@ func (t *RpcS2S) GrepLogFile(args *Args, reply *Reply) error {
 		}
 	}()
 
-	reply.LineIndices, reply.Lines, err = GrepFile(Cfg.LogPath, args.Request)
+	reply.Lines, err = GrepFile(Cfg.LogPath, args.Request)
 	return err
 }

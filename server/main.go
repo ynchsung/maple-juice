@@ -41,6 +41,7 @@ func main() {
 	l, e := net.Listen("tcp", common.Cfg.Port)
 	if e != nil {
 		log.Fatal("Listen error:", e)
+		os.Exit(1)
 	}
 	log.Printf("Server start, port %v", common.Cfg.Port)
 	http.Serve(l, nil)

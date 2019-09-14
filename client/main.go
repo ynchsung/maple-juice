@@ -16,11 +16,14 @@ func main() {
 	}
 
 	args := &common.Args{"712.*"}
-	var reply common.Reply
+	var reply common.ReplyGrepList
 	err = client.Call("RpcClient.GrepLogFile", args, &reply)
 	if err == nil {
-		for i, idx := range reply.LineIndices {
-			fmt.Printf("Get %v: %v\n", idx, reply.Lines[i])
+		for _, replyGrepObj := range reply.Replys {
+			fmt.Printf("Host %v\n", replyGrepObj.Host)
+			for _, line := range replyGrepObj.Lines {
+				fmt.Printf("\tLine %v: %v\n", line.LineNum, line.LineStr)
+			}
 		}
 	}
 }
