@@ -22,13 +22,13 @@ func main() {
 				"vm9.log",
 				"vm10.log",
 			},
-			"^[0-9]*[a-z]{5}",
+			os.Args[3],
 		}
 		reply common.ReplyGrepList
 	)
 
 	c := make(chan error)
-	go common.CallRpcClientGrepFile("172.22.154.175", ":7123", &args, &reply, c)
+	go common.CallRpcClientGrepFile(os.Args[1], os.Args[2], &args, &reply, c)
 	err := <-c
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
