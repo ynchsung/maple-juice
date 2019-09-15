@@ -37,6 +37,7 @@ func main() {
 	}
 
 	// print the result
+	lineCount := 0
 	for _, replyGrep := range reply {
 		if !replyGrep.Flag {
 			fmt.Printf("Host %v error: %v\n", replyGrep.Host, replyGrep.ErrStr)
@@ -46,6 +47,7 @@ func main() {
 		fmt.Printf("Host %v got %v lines\n", replyGrep.Host, replyGrep.LineCount)
 		for _, file := range replyGrep.Files {
 			fmt.Printf("\t%v has %v lines\n", file.Path, len(file.Lines))
+			lineCount += len(file.Lines)
 			/*
 				fmt.Printf("\t--\n")
 				for _, line := range file.Lines {
@@ -55,4 +57,6 @@ func main() {
 			*/
 		}
 	}
+
+	fmt.Printf("\n\nTotal: %v lines\n", lineCount)
 }
