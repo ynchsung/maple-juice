@@ -5,6 +5,24 @@
   - `server/`: server code
   - `client/`: client code
 
+# Setup
+- Go directory setup
+```
+$ mkdir -p ~/go/src/
+$ mkdir -p ~/go/pkg/
+$ mkdir -p ~/go/bin/
+```
+- Clone repository
+```
+$ cd ~/go/src/
+$ git clone https://gitlab.engr.illinois.edu/ycsung21/cs425.git
+$ mv cs425/ ycsw/
+```
+- Package installation
+```
+$ go get gopkg.in/ini.v1
+```
+
 # Server Configure
 There must be 3 configure files under directory `server/`.
 - `server.ini`: General configure for all servers, including log path, port, etc.
