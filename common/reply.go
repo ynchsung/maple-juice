@@ -9,3 +9,9 @@ type ReplyGrep struct {
 }
 
 type ReplyGrepList []*ReplyGrep
+
+type ReplyWriteFile struct {
+	Flag        bool
+	ErrStr      string
+	ByteWritten int
+}

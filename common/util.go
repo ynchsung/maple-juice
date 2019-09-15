@@ -9,7 +9,7 @@ import (
 /* GrepFile
  * use regular expression to grep lines from a file
  * Args:	path, regex
- * Return:	slice of Line, error
+ * Return:	*GrepInfo, error
  */
 
 type Line struct {
@@ -46,4 +46,14 @@ func GrepFile(path string, regex string) (*GrepInfo, error) {
 	}
 
 	return ret, nil
+}
+
+func WriteFile(path string, content []byte) (int, error) {
+	fp, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE, 0644)
+	if err != nil {
+		return 0, err
+	}
+	defer fp.Close()
+
+	return fp.Write(content)
 }
