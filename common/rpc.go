@@ -7,10 +7,9 @@ type RpcS2S struct {
 }
 
 func (t *RpcClient) GrepFile(args *ArgGrep, reply *ReplyGrepList) error {
-	var (
-		chans []chan error
-	)
+	var chans []chan error
 
+	// Send RpcS2S Grep File for all machines in the cluster
 	for _, host := range Cfg.ClusterInfo.Hosts {
 		r := &ReplyGrep{host.Host, true, "", 0, []*GrepInfo{}}
 		c := make(chan error)
@@ -20,12 +19,9 @@ func (t *RpcClient) GrepFile(args *ArgGrep, reply *ReplyGrepList) error {
 		chans = append(chans, c)
 	}
 
+	// Wait for all RpcS2S
 	for i, _ := range Cfg.ClusterInfo.Hosts {
-		err := <-chans[i]
-		if err != nil {
-			(*reply)[i].Flag = false
-			(*reply)[i].ErrStr = err.Error()
-		}
+		_ = <-chans[i]
 	}
 
 	return nil
@@ -50,6 +46,9 @@ func (t *RpcS2S) GrepFile(args *ArgGrep, reply *ReplyGrep) error {
 
 func (t *RpcS2S) WriteFile(args *ArgWriteFile, reply *ReplyWriteFile) error {
 	var err error = nil
+
+	reply.Flag = true
+	reply.ErrStr = ""
 	reply.ByteWritten, err = WriteFile(args.Path, args.Content)
 	if err != nil {
 		reply.Flag = false

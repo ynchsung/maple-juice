@@ -1,5 +1,9 @@
 # Basic Info
 - Language: Golang
+- Repository structure:
+  - `common/`: some common types, utils, RPSs which will be used by both client and server, or even other components in the future.
+  - `server/`: server code
+  - `client/`: client code
 
 # Server Configure
 There must be 3 configure files under directory `server/`.

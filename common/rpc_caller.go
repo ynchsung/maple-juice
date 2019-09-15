@@ -4,6 +4,10 @@ import (
 	"net/rpc"
 )
 
+/* Asynchronous RPC caller
+ * It should be called by creating a go-routine, and passing a channel for waiting
+ */
+
 func CallRpcClientGrepFile(host string, port string, args *ArgGrep, reply *ReplyGrepList, c chan error) {
 	client, err := rpc.DialHTTP("tcp", host+port)
 	if err != nil {

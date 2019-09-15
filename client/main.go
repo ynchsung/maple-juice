@@ -27,6 +27,7 @@ func main() {
 		reply common.ReplyGrepList
 	)
 
+	// call RpcClient Grep File
 	c := make(chan error)
 	go common.CallRpcClientGrepFile(os.Args[1], os.Args[2], &args, &reply, c)
 	err := <-c
@@ -35,6 +36,7 @@ func main() {
 		os.Exit(1)
 	}
 
+	// print the result
 	for _, replyGrep := range reply {
 		if !replyGrep.Flag {
 			fmt.Printf("Host %v error: %v\n", replyGrep.Host, replyGrep.ErrStr)

@@ -98,7 +98,7 @@ func TestGrepFile(t *testing.T) {
 		_ = <-chans1[i]
 	}
 
-	// call rpc grep
+	// Send RpcS2S Grep File
 	var (
 		args  ArgGrep = ArgGrep{[]string{TEST_LOG_PATH}, TEST_GREP_REGEX}
 		reply ReplyGrepList
@@ -117,7 +117,7 @@ func TestGrepFile(t *testing.T) {
 		_ = <-chans2[i]
 	}
 
-	// compare answer
+	// Compare answer
 	if len(answer) != len(reply) {
 		t.Errorf("Reply length error: %v vs %v", len(answer), len(reply))
 	}
