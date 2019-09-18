@@ -34,7 +34,7 @@ func (t *RpcS2S) GrepFile(args *ArgGrep, reply *ReplyGrep) error {
 	reply.LineCount = 0
 	reply.Files = []*GrepInfo{}
 	for _, path := range args.Paths {
-		info, err := GrepFile(path, args.Regex)
+		info, err := GrepFile(path, args.RequestStr, args.IsRegex)
 		if err == nil {
 			reply.LineCount += len(info.Lines)
 			reply.Files = append(reply.Files, info)

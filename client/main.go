@@ -8,6 +8,11 @@ import (
 )
 
 func main() {
+	isRegex := true
+	if os.Args[4] == "pattern" {
+		isRegex = false
+	}
+
 	var (
 		args common.ArgGrep = common.ArgGrep{
 			[]string{
@@ -23,6 +28,7 @@ func main() {
 				"vm10.log",
 			},
 			os.Args[3],
+			isRegex,
 		}
 		reply common.ReplyGrepList
 	)

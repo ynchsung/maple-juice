@@ -1,8 +1,9 @@
 package common
 
 type ArgGrep struct {
-	Paths []string
-	Regex string
+	Paths      []string
+	RequestStr string
+	IsRegex    bool
 }
 
 type ArgWriteFile struct {

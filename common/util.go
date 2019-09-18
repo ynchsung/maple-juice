@@ -22,8 +22,11 @@ type GrepInfo struct {
 	Lines []Line
 }
 
-func GrepFile(path string, regex string) (*GrepInfo, error) {
-	re := regexp.MustCompile(regex)
+func GrepFile(path string, str string, isRegex bool) (*GrepInfo, error) {
+	if !isRegex {
+		str = regexp.QuoteMeta(str)
+	}
+	re := regexp.MustCompile(str)
 
 	fp, err := os.Open(path)
 	if err != nil {

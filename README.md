@@ -43,8 +43,10 @@ $ ./server
 ```
 $ cd client/
 $ go build
-$ ./client [hostname/IP] :[port] [regex]
+$ ./client [hostname/IP] :[port] [request_str] [flag]
 ```
+Note that if the request string is a pattern, then pass "pattern" to `[flag]`.
+If the request string is a regular expression, then pass "regex" to `[flag]`.
 
 ## Unit Test
 - MP1: Distributed grep file

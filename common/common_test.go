@@ -100,7 +100,7 @@ func TestGrepFile(t *testing.T) {
 
 	// Send RpcS2S Grep File
 	var (
-		args  ArgGrep = ArgGrep{[]string{TEST_LOG_PATH}, TEST_GREP_REGEX}
+		args  ArgGrep = ArgGrep{[]string{TEST_LOG_PATH}, TEST_GREP_REGEX, true}
 		reply ReplyGrepList
 	)
 
