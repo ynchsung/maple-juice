@@ -54,11 +54,9 @@ func main() {
 
 	// listen udp
 
-	if common.Cfg.Self.Host == common.Cfg.Introducer.Host {
-		// introducer
-		common.AddMember(common.Cfg.Self)
-	} else {
-		// others
+	common.AddMember(common.Cfg.Self)
+	if common.Cfg.Self.Host != common.Cfg.Introducer.Host {
+		// not introducer
 		var (
 			args  common.ArgMemberJoin = common.ArgMemberJoin(common.Cfg.Self)
 			reply common.ReplyMemberJoin
@@ -72,6 +70,5 @@ func main() {
 		}
 	}
 
-	for {
-	}
+	select {}
 }
