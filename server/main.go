@@ -50,5 +50,28 @@ func main() {
 		common.Cfg.Self.MachineID,
 	)
 
-	http.Serve(l, nil)
+	go http.Serve(l, nil)
+
+	// listen udp
+
+	if common.Cfg.Self.Host == common.Cfg.Introducer.Host {
+		// introducer
+		common.AddMember(common.Cfg.Self)
+	} else {
+		// others
+		var (
+			args  common.ArgMemberJoin = common.ArgMemberJoin(common.Cfg.Self)
+			reply common.ReplyMemberJoin
+			c     chan error = make(chan error)
+		)
+		go common.CallRpcS2SMemberJoin(common.Cfg.Introducer.Host, common.Cfg.Introducer.Port, &args, &reply, c)
+		err := <-c
+		if err != nil {
+			log.Fatalf("Join error: %v", err)
+			os.Exit(1)
+		}
+	}
+
+	for {
+	}
 }

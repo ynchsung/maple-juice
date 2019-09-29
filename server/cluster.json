@@ -4,52 +4,62 @@
         {
             "machine_id": 1, 
             "host": "fa19-cs425-g53-01.cs.illinois.edu", 
-            "port": ":7123"
+            "port": ":7123",
+            "udp_port": ":7124"
         }, 
         {
             "machine_id": 2, 
             "host": "fa19-cs425-g53-02.cs.illinois.edu", 
-            "port": ":7123"
+            "port": ":7123",
+            "udp_port": ":7124"
         }, 
         {
             "machine_id": 3, 
             "host": "fa19-cs425-g53-03.cs.illinois.edu", 
-            "port": ":7123"
+            "port": ":7123",
+            "udp_port": ":7124"
         }, 
         {
             "machine_id": 4, 
             "host": "fa19-cs425-g53-04.cs.illinois.edu", 
-            "port": ":7123"
+            "port": ":7123",
+            "udp_port": ":7124"
         }, 
         {
             "machine_id": 5, 
             "host": "fa19-cs425-g53-05.cs.illinois.edu", 
-            "port": ":7123"
+            "port": ":7123",
+            "udp_port": ":7124"
         }, 
         {
             "machine_id": 6, 
             "host": "fa19-cs425-g53-06.cs.illinois.edu", 
-            "port": ":7123"
+            "port": ":7123",
+            "udp_port": ":7124"
         }, 
         {
             "machine_id": 7, 
             "host": "fa19-cs425-g53-07.cs.illinois.edu", 
-            "port": ":7123"
+            "port": ":7123",
+            "udp_port": ":7124"
         }, 
         {
             "machine_id": 8, 
             "host": "fa19-cs425-g53-08.cs.illinois.edu", 
-            "port": ":7123"
+            "port": ":7123",
+            "udp_port": ":7124"
         }, 
         {
             "machine_id": 9, 
             "host": "fa19-cs425-g53-09.cs.illinois.edu", 
-            "port": ":7123"
+            "port": ":7123",
+            "udp_port": ":7124"
         }, 
         {
             "machine_id": 10, 
             "host": "fa19-cs425-g53-10.cs.illinois.edu", 
-            "port": ":7123"
+            "port": ":7123",
+            "udp_port": ":7124"
         }
     ]
 }

@@ -15,3 +15,13 @@ type ReplyWriteFile struct {
 	ErrStr      string
 	ByteWritten int
 }
+
+type ReplyMemberJoin struct {
+	Flag   bool
+	ErrStr string
+}
+
+type ReplyMemberAdd struct {
+	Flag   bool
+	ErrStr string
+}

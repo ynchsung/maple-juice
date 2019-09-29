@@ -10,3 +10,7 @@ type ArgWriteFile struct {
 	Path    string
 	Content []byte
 }
+
+type ArgMemberJoin HostInfo
+
+type ArgMemberAdd HostInfo

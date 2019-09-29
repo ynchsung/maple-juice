@@ -55,3 +55,25 @@ func CallRpcS2SWriteFile(host string, port string, args *ArgWriteFile, reply *Re
 	err = client.Call("RpcS2S.WriteFile", args, reply)
 	c <- err
 }
+
+func CallRpcS2SMemberJoin(host string, port string, args *ArgMemberJoin, reply *ReplyMemberJoin, c chan error) {
+	client, err := rpc.DialHTTP("tcp", host+port)
+	if err != nil {
+		c <- err
+		return
+	}
+
+	err = client.Call("RpcS2S.MemberJoin", args, reply)
+	c <- err
+}
+
+func CallRpcS2SMemberAdd(host string, port string, args *ArgMemberAdd, reply *ReplyMemberAdd, c chan error) {
+	client, err := rpc.DialHTTP("tcp", host+port)
+	if err != nil {
+		c <- err
+		return
+	}
+
+	err = client.Call("RpcS2S.MemberAdd", args, reply)
+	c <- err
+}
