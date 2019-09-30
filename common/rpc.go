@@ -48,7 +48,7 @@ func (t *RpcClient) Shutdown(args *ArgShutdown, reply *ReplyShutdown) error {
 
 		r := ReplyMemberLeave{true, ""}
 		c := make(chan error)
-		go CallRpcS2SMemberLeave(mem.Info.Host, mem.Info.Port, &args2, &r, c)
+		go CallRpcS2SGeneral("MemberLeave", mem.Info.Host, mem.Info.Port, &args2, &r, c)
 
 		replys = append(replys, r)
 		chans = append(chans, c)
@@ -120,7 +120,7 @@ func (t *RpcS2S) MemberJoin(args *ArgMemberJoin, reply *ReplyMemberJoin) error {
 
 			r := ReplyMemberJoin{true, ""}
 			c := make(chan error)
-			go CallRpcS2SMemberJoin(mem.Info.Host, mem.Info.Port, args, &r, c)
+			go CallRpcS2SGeneral("MemberJoin", mem.Info.Host, mem.Info.Port, args, &r, c)
 
 			replys = append(replys, r)
 			chans = append(chans, c)
@@ -138,7 +138,7 @@ func (t *RpcS2S) MemberJoin(args *ArgMemberJoin, reply *ReplyMemberJoin) error {
 		reply2 ReplyMemberAdd
 		c2     chan error = make(chan error)
 	)
-	go CallRpcS2SMemberAdd(args.Host, args.Port, &arg2, &reply2, c2)
+	go CallRpcS2SGeneral("MemberAdd", args.Host, args.Port, &arg2, &reply2, c2)
 	_ = <-c2 // assume no error
 
 	AddMember(HostInfo(*args))

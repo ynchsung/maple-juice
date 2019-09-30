@@ -62,7 +62,7 @@ func main() {
 			reply common.ReplyMemberJoin
 			c     chan error = make(chan error)
 		)
-		go common.CallRpcS2SMemberJoin(common.Cfg.Introducer.Host, common.Cfg.Introducer.Port, &args, &reply, c)
+		go common.CallRpcS2SGeneral("MemberJoin", common.Cfg.Introducer.Host, common.Cfg.Introducer.Port, &args, &reply, c)
 		err := <-c
 		if err != nil {
 			log.Fatalf("Join error: %v", err)
