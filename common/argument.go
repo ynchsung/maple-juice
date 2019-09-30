@@ -6,6 +6,8 @@ type ArgGrep struct {
 	IsRegex    bool
 }
 
+type ArgShutdown int
+
 type ArgWriteFile struct {
 	Path    string
 	Content []byte
@@ -14,3 +16,5 @@ type ArgWriteFile struct {
 type ArgMemberJoin HostInfo
 
 type ArgMemberAdd HostInfo
+
+type ArgMemberLeave HostInfo

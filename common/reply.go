@@ -10,6 +10,8 @@ type ReplyGrep struct {
 
 type ReplyGrepList []*ReplyGrep
 
+type ReplyShutdown int
+
 type ReplyWriteFile struct {
 	Flag        bool
 	ErrStr      string
@@ -22,6 +24,11 @@ type ReplyMemberJoin struct {
 }
 
 type ReplyMemberAdd struct {
+	Flag   bool
+	ErrStr string
+}
+
+type ReplyMemberLeave struct {
 	Flag   bool
 	ErrStr string
 }

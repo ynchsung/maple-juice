@@ -77,3 +77,14 @@ func CallRpcS2SMemberAdd(host string, port string, args *ArgMemberAdd, reply *Re
 	err = client.Call("RpcS2S.MemberAdd", args, reply)
 	c <- err
 }
+
+func CallRpcS2SMemberLeave(host string, port string, args *ArgMemberLeave, reply *ReplyMemberLeave, c chan error) {
+	client, err := rpc.DialHTTP("tcp", host+port)
+	if err != nil {
+		c <- err
+		return
+	}
+
+	err = client.Call("RpcS2S.MemberLeave", args, reply)
+	c <- err
+}
