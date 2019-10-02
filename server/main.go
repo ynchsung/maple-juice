@@ -41,11 +41,11 @@ func UdpServer(udp net.PacketConn) {
 		json.Unmarshal(buf[:n], &res)
 
 		if common.UpdateHeartbeat(res, now) {
-			log.Printf("[Info] Get heartbeat from %v, id %v, incarnation %v, time %v",
+			log.Printf("[Info] Get heartbeat from %v, id %v, incarnation %v, timestamp %v",
 				res.Info.Host,
 				res.Info.MachineID,
 				res.Incar,
-				res.Timestamp,
+				res.Timestamp.Unix(),
 			)
 		}
 	}
@@ -70,7 +70,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	log.Printf("[Info] Server start, host %v, port %v, machine ID %v",
+	log.Printf("[Info] Server start, host %v, port %v, id %v",
 		common.Cfg.Self.Host,
 		common.Cfg.Self.Port,
 		common.Cfg.Self.MachineID,

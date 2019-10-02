@@ -32,3 +32,8 @@ type ReplyMemberLeave struct {
 	Flag   bool
 	ErrStr string
 }
+
+type ReplyMemberFailure struct {
+	Flag   bool
+	ErrStr string
+}

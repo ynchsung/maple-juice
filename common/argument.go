@@ -18,3 +18,5 @@ type ArgMemberJoin HostInfo
 type ArgMemberAdd HostInfo
 
 type ArgMemberLeave HostInfo
+
+type ArgMemberFailure HostInfo

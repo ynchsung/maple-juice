@@ -25,8 +25,8 @@ func (t *RpcClient) GrepFile(args *ArgGrep, reply *ReplyGrepList) error {
 	}
 
 	// Wait for all RpcS2S
-	for i, _ := range Cfg.ClusterInfo.Hosts {
-		_ = <-chans[i]
+	for _, c := range chans {
+		_ = <-c
 	}
 
 	return nil
@@ -35,7 +35,7 @@ func (t *RpcClient) GrepFile(args *ArgGrep, reply *ReplyGrepList) error {
 func (t *RpcClient) Shutdown(args *ArgShutdown, reply *ReplyShutdown) error {
 	var (
 		args2  ArgMemberLeave = ArgMemberLeave(Cfg.Self)
-		replys []ReplyMemberLeave
+		replys []*ReplyMemberLeave
 		chans  []chan error
 	)
 
@@ -46,17 +46,17 @@ func (t *RpcClient) Shutdown(args *ArgShutdown, reply *ReplyShutdown) error {
 			continue
 		}
 
-		r := ReplyMemberLeave{true, ""}
+		r := &ReplyMemberLeave{true, ""}
 		c := make(chan error)
-		go CallRpcS2SGeneral("MemberLeave", mem.Info.Host, mem.Info.Port, &args2, &r, c)
+		go CallRpcS2SGeneral("MemberLeave", mem.Info.Host, mem.Info.Port, &args2, r, c)
 
 		replys = append(replys, r)
 		chans = append(chans, c)
 	}
 
 	// Wait for all RpcS2S
-	for i, _ := range chans {
-		_ = <-chans[i]
+	for _, c := range chans {
+		_ = <-c
 	}
 
 	log.Printf("[Info] Shutdown")
@@ -108,8 +108,8 @@ func (t *RpcS2S) MemberJoin(args *ArgMemberJoin, reply *ReplyMemberJoin) error {
 	if Cfg.Self.Host == Cfg.Introducer.Host {
 		// introducer should forward add member to all other members
 		var (
+			replys []*ReplyMemberJoin
 			chans  []chan error
-			replys []ReplyMemberJoin
 		)
 
 		members := GetMemberList()
@@ -118,17 +118,17 @@ func (t *RpcS2S) MemberJoin(args *ArgMemberJoin, reply *ReplyMemberJoin) error {
 				continue
 			}
 
-			r := ReplyMemberJoin{true, ""}
+			r := &ReplyMemberJoin{true, ""}
 			c := make(chan error)
-			go CallRpcS2SGeneral("MemberJoin", mem.Info.Host, mem.Info.Port, args, &r, c)
+			go CallRpcS2SGeneral("MemberJoin", mem.Info.Host, mem.Info.Port, args, r, c)
 
 			replys = append(replys, r)
 			chans = append(chans, c)
 		}
 
 		// Wait for all RpcS2S
-		for i, _ := range chans {
-			_ = <-chans[i]
+		for _, c := range chans {
+			_ = <-c
 		}
 	}
 
@@ -159,6 +159,18 @@ func (t *RpcS2S) MemberAdd(args *ArgMemberAdd, reply *ReplyMemberAdd) error {
 
 func (t *RpcS2S) MemberLeave(args *ArgMemberLeave, reply *ReplyMemberLeave) error {
 	log.Printf("[Info] MemberLeave: host %v, port %v, udp_port %v, id %v",
+		args.Host,
+		args.Port,
+		args.UdpPort,
+		args.MachineID,
+	)
+
+	DeleteMember(HostInfo(*args))
+	return nil
+}
+
+func (t *RpcS2S) MemberFailure(args *ArgMemberFailure, reply *ReplyMemberFailure) error {
+	log.Printf("[Info] MemberFailure: host %v, port %v, udp_port %v, id %v",
 		args.Host,
 		args.Port,
 		args.UdpPort,
