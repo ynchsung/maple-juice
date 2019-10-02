@@ -36,12 +36,45 @@ func HeartbeatSender() {
 
 			conn.Write(send_byte)
 			conn.Close()
-			log.Printf("[Info] Send heartbeat to %v, incarnation %v, timestamp %v", receiver.Info.Host, now.Unix())
+			log.Printf("[Info] Send heartbeat to %v, incarnation %v, timestamp %v",
+				receiver.Info.Host,
+				incar,
+				now.Unix(),
+			)
 		}
 
 		incar += 1
 		time.Sleep(HEARTBEAT_INTERVAL)
 	}
+}
+
+func HandleFailure(c chan error) {
+	var (
+		args   common.ArgMemberFailure = common.ArgMemberFailure(sender.Info)
+		replys []*common.ReplyMemberFailure
+		chans  []chan error
+	)
+
+	for _, mem := range memberListCopy {
+		// don't send failure message to the failing machine
+		if mem.Info.Host == sender.Info.Host {
+			continue
+		}
+
+		r := &common.ReplyMemberFailure{true, ""}
+		c2 := make(chan error)
+		go common.CallRpcS2SGeneral("MemberFailure", mem.Info.Host, mem.Info.Port, &args, r, c2)
+
+		replys = append(replys, r)
+		chans = append(chans, c2)
+	}
+
+	// Wait for all RpcS2S
+	for _, c2 := range chans {
+		_ = <-c2
+	}
+
+	c <- nil
 }
 
 func HeartbeatMonitor() {
@@ -64,7 +97,7 @@ func HeartbeatMonitor() {
 					now.Unix(),
 				)
 
-				fmt.Printf("Detect failure host %v, id %v, incarnation %v, timestamp %v, now %v",
+				fmt.Printf("Detect failure host %v, id %v, incarnation %v, timestamp %v, now %v\n",
 					sender.Info.Host,
 					sender.Info.MachineID,
 					sender.Incar,
@@ -73,34 +106,7 @@ func HeartbeatMonitor() {
 				)
 
 				c := make(chan error)
-				go func() {
-					var (
-						args   common.ArgMemberFailure = common.ArgMemberFailure(sender.Info)
-						replys []*common.ReplyMemberFailure
-						chans2 []chan error
-					)
-
-					for _, mem := range memberListCopy {
-						// don't send failure message to the failing machine
-						if mem.Info.Host == sender.Info.Host {
-							continue
-						}
-
-						r := &common.ReplyMemberFailure{true, ""}
-						c2 := make(chan error)
-						go common.CallRpcS2SGeneral("MemberFailure", mem.Info.Host, mem.Info.Port, &args, r, c2)
-
-						replys = append(replys, r)
-						chans2 = append(chans, c2)
-					}
-
-					// Wait for all RpcS2S
-					for _, c2 := range chans2 {
-						_ = <-c2
-					}
-
-					c <- nil
-				}()
+				go HandleFailure(c)
 
 				chans = append(chans, c)
 			}
