@@ -4,6 +4,13 @@ import (
 	"net/rpc"
 )
 
+type RpcAsyncCallerTask struct {
+	Info  *HostInfo
+	Args  interface{}
+	Reply interface{}
+	Chan  chan error
+}
+
 /* Asynchronous RPC caller
  * It should be called by creating a go-routine, and passing a channel for waiting
  */

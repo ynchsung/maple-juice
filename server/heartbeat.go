@@ -45,8 +45,11 @@ func HeartbeatSender() {
 			chans map[string]chan error = make(map[string]chan error)
 		)
 
+		fmt.Printf("map size %v\n", len(chans))
+
 		for _, receiver := range receivers {
 			c := make(chan error)
+
 			go SendHeartbeat(receiver, sendByte, c)
 
 			chans[receiver.Info.Host] = c
@@ -75,12 +78,9 @@ func HeartbeatSender() {
 }
 
 func HandleFailure(sender common.MemberInfo, memberListCopy []common.MemberInfo, c chan error) {
-	var (
-		args   common.ArgMemberFailure = common.ArgMemberFailure(sender.Info)
-		replys []*common.ReplyMemberFailure
-		chans  []chan error
-	)
+	var tasks []common.RpcAsyncCallerTask
 
+	args := common.ArgMemberFailure(sender.Info)
 	for _, mem := range memberListCopy {
 		// don't send failure message to the failing machine
 		if mem.Info.Host == sender.Info.Host {
@@ -89,22 +89,18 @@ func HandleFailure(sender common.MemberInfo, memberListCopy []common.MemberInfo,
 
 		r := &common.ReplyMemberFailure{true, ""}
 		c2 := make(chan error)
+
 		go common.CallRpcS2SGeneral("MemberFailure", mem.Info.Host, mem.Info.Port, &args, r, c2)
 
-		replys = append(replys, r)
-		chans = append(chans, c2)
+		tasks = append(tasks, common.RpcAsyncCallerTask{&mem.Info, &args, r, c2})
 	}
 
-	// Wait for all RpcS2S
-	for i, _ := range memberListCopy {
-		if memberListCopy[i].Info.Host == sender.Info.Host {
-			continue
-		}
-
-		err := <-chans[i]
+	// Wait for all RpcAsyncCallerTask
+	for _, task := range tasks {
+		err := <-task.Chan
 		if err != nil {
 			log.Printf("[Error] Fail to send MemberFailure to %v: %v",
-				memberListCopy[i].Info.Host,
+				task.Info.Host,
 				err,
 			)
 		}
