@@ -5,10 +5,11 @@ import (
 )
 
 type RpcAsyncCallerTask struct {
-	Info  *HostInfo
-	Args  interface{}
-	Reply interface{}
-	Chan  chan error
+	RpcName string
+	Info    *HostInfo
+	Args    interface{}
+	Reply   interface{}
+	Chan    chan error
 }
 
 /* Asynchronous RPC caller
@@ -17,25 +18,24 @@ type RpcAsyncCallerTask struct {
 
 // TODO: add 1 second timeout
 
-func CallRpcClientGeneral(rpc_name string, host string, port string, args interface{}, reply interface{}, c chan error) {
-	client, err := rpc.DialHTTP("tcp", host+port)
+func CallRpcClientGeneral(task *RpcAsyncCallerTask) {
+	client, err := rpc.DialHTTP("tcp", task.Info.Host+task.Info.Port)
 	if err != nil {
-		c <- err
+		task.Chan <- err
 		return
 	}
 
-	c <- client.Call("RpcClient."+rpc_name, args, reply)
+	task.Chan <- client.Call("RpcClient."+task.RpcName, task.Args, task.Reply)
 }
 
-func CallRpcS2SGeneral(rpc_name string, host string, port string, args interface{}, reply interface{}, c chan error) {
-	client, err := rpc.DialHTTP("tcp", host+port)
+func CallRpcS2SGeneral(task *RpcAsyncCallerTask) {
+	client, err := rpc.DialHTTP("tcp", task.Info.Host+task.Info.Port)
 	if err != nil {
-		c <- err
+		task.Chan <- err
 		return
 	}
 
-	err = client.Call("RpcS2S."+rpc_name, args, reply)
-	c <- err
+	task.Chan <- client.Call("RpcS2S."+task.RpcName, task.Args, task.Reply)
 }
 
 func CallRpcS2SGrepFile(host string, port string, args *ArgGrep, reply *ReplyGrep, c chan error) {

@@ -21,7 +21,7 @@ func (t *RpcClient) GrepFile(args *ArgGrep, reply *ReplyGrepList) error {
 
 		go CallRpcS2SGrepFile(host.Host, host.Port, args, r, c)
 
-		tasks = append(tasks, RpcAsyncCallerTask{&host, args, r, c})
+		tasks = append(tasks, RpcAsyncCallerTask{"GrepFile", &host, args, r, c})
 		*reply = append(*reply, r)
 	}
 
@@ -50,12 +50,17 @@ func (t *RpcClient) Shutdown(args *ArgShutdown, reply *ReplyShutdown) error {
 			continue
 		}
 
-		r := &ReplyMemberLeave{true, ""}
-		c := make(chan error)
+		task := RpcAsyncCallerTask{
+			"MemberLeave",
+			&mem.Info,
+			&args2,
+			&ReplyMemberLeave{true, ""},
+			make(chan error),
+		}
 
-		go CallRpcS2SGeneral("MemberLeave", mem.Info.Host, mem.Info.Port, &args2, r, c)
+		go CallRpcS2SGeneral(&task)
 
-		tasks = append(tasks, RpcAsyncCallerTask{&mem.Info, &args2, r, c})
+		tasks = append(tasks, task)
 	}
 
 	// Wait for all RpcAsyncCallerTask
@@ -125,12 +130,17 @@ func (t *RpcS2S) MemberJoin(args *ArgMemberJoin, reply *ReplyMemberJoin) error {
 				continue
 			}
 
-			r := &ReplyMemberJoin{true, ""}
-			c := make(chan error)
+			task := RpcAsyncCallerTask{
+				"MemberJoin",
+				&mem.Info,
+				args,
+				&ReplyMemberJoin{true, ""},
+				make(chan error),
+			}
 
-			go CallRpcS2SGeneral("MemberJoin", mem.Info.Host, mem.Info.Port, args, r, c)
+			go CallRpcS2SGeneral(&task)
 
-			tasks = append(tasks, RpcAsyncCallerTask{&mem.Info, args, r, c})
+			tasks = append(tasks, task)
 		}
 
 		// Wait for all RpcAsyncCallerTask
@@ -146,15 +156,19 @@ func (t *RpcS2S) MemberJoin(args *ArgMemberJoin, reply *ReplyMemberJoin) error {
 	}
 
 	// ping the new node to add myself
-	var (
-		arg2   ArgMemberAdd = ArgMemberAdd(Cfg.Self)
-		reply2 ReplyMemberAdd
-		c2     chan error = make(chan error)
-	)
+	arg2 := ArgMemberAdd(Cfg.Self)
 
-	go CallRpcS2SGeneral("MemberAdd", args.Host, args.Port, &arg2, &reply2, c2)
+	task := RpcAsyncCallerTask{
+		"MemberAdd",
+		&HostInfo{args.Host, args.Port, "", 0},
+		&arg2,
+		&ReplyMemberAdd{},
+		make(chan error),
+	}
 
-	err := <-c2
+	go CallRpcS2SGeneral(&task)
+
+	err := <-task.Chan
 	if err != nil {
 		log.Printf("[Error] Fail to send MemberAdd to %v: %v",
 			args.Host,

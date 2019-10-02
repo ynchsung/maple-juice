@@ -45,8 +45,6 @@ func HeartbeatSender() {
 			chans map[string]chan error = make(map[string]chan error)
 		)
 
-		fmt.Printf("map size %v\n", len(chans))
-
 		for _, receiver := range receivers {
 			c := make(chan error)
 
@@ -87,12 +85,17 @@ func HandleFailure(sender common.MemberInfo, memberListCopy []common.MemberInfo,
 			continue
 		}
 
-		r := &common.ReplyMemberFailure{true, ""}
-		c2 := make(chan error)
+		task := common.RpcAsyncCallerTask{
+			"MemberFailure",
+			&mem.Info,
+			&args,
+			&common.ReplyMemberFailure{true, ""},
+			make(chan error),
+		}
 
-		go common.CallRpcS2SGeneral("MemberFailure", mem.Info.Host, mem.Info.Port, &args, r, c2)
+		go common.CallRpcS2SGeneral(&task)
 
-		tasks = append(tasks, common.RpcAsyncCallerTask{&mem.Info, &args, r, c2})
+		tasks = append(tasks, task)
 	}
 
 	// Wait for all RpcAsyncCallerTask

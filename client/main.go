@@ -9,9 +9,17 @@ import (
 
 func go_grep_log(args *common.ArgGrep, reply *common.ReplyGrepList, flag bool) {
 	// call RpcClient Grep File
-	c := make(chan error)
-	go common.CallRpcClientGeneral("GrepFile", os.Args[2], os.Args[3], args, reply, c)
-	err := <-c
+	task := common.RpcAsyncCallerTask{
+		"GrepFile",
+		&common.HostInfo{os.Args[2], os.Args[3], "", 0},
+		args,
+		reply,
+		make(chan error),
+	}
+
+	go common.CallRpcClientGeneral(&task)
+
+	err := <-task.Chan
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		return
@@ -95,9 +103,17 @@ func shutdown() {
 	)
 
 	// call RpcClient Grep File
-	c := make(chan error)
-	go common.CallRpcClientGeneral("Shutdown", os.Args[2], os.Args[3], &args, &reply, c)
-	err := <-c
+	task := common.RpcAsyncCallerTask{
+		"Shutdown",
+		&common.HostInfo{os.Args[2], os.Args[3], "", 0},
+		&args,
+		&reply,
+		make(chan error),
+	}
+
+	go common.CallRpcClientGeneral(&task)
+
+	err := <-task.Chan
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 	}

@@ -90,13 +90,19 @@ func main() {
 	common.AddMember(common.Cfg.Self)
 	if common.Cfg.Self.Host != common.Cfg.Introducer.Host {
 		// not introducer
-		var (
-			args  common.ArgMemberJoin = common.ArgMemberJoin(common.Cfg.Self)
-			reply common.ReplyMemberJoin
-			c     chan error = make(chan error)
-		)
-		go common.CallRpcS2SGeneral("MemberJoin", common.Cfg.Introducer.Host, common.Cfg.Introducer.Port, &args, &reply, c)
-		err := <-c
+		args := common.ArgMemberJoin(common.Cfg.Self)
+
+		task := common.RpcAsyncCallerTask{
+			"MemberJoin",
+			&common.Cfg.Introducer,
+			&args,
+			&common.ReplyMemberJoin{},
+			make(chan error),
+		}
+
+		go common.CallRpcS2SGeneral(&task)
+
+		err := <-task.Chan
 		if err != nil {
 			log.Fatalf("[Fatal] Join error: %v", err)
 			os.Exit(1)
