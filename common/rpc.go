@@ -59,7 +59,7 @@ func (t *RpcClient) Shutdown(args *ArgShutdown, reply *ReplyShutdown) error {
 		_ = <-chans[i]
 	}
 
-	log.Printf("Shutdown")
+	log.Printf("[Info] Shutdown")
 	os.Exit(0)
 
 	return nil
@@ -98,7 +98,7 @@ func (t *RpcS2S) WriteFile(args *ArgWriteFile, reply *ReplyWriteFile) error {
 }
 
 func (t *RpcS2S) MemberJoin(args *ArgMemberJoin, reply *ReplyMemberJoin) error {
-	log.Printf("MemberJoin: host=%v port=%v udp_port=%v id=%v",
+	log.Printf("[Info] MemberJoin: host %v, port %v, udp_port %v, id %v",
 		args.Host,
 		args.Port,
 		args.UdpPort,
@@ -146,7 +146,7 @@ func (t *RpcS2S) MemberJoin(args *ArgMemberJoin, reply *ReplyMemberJoin) error {
 }
 
 func (t *RpcS2S) MemberAdd(args *ArgMemberAdd, reply *ReplyMemberAdd) error {
-	log.Printf("MemberAdd: host=%v port=%v udp_port=%v id=%v",
+	log.Printf("[Info] MemberAdd: host %v, port %v, udp_port %v, id %v",
 		args.Host,
 		args.Port,
 		args.UdpPort,
@@ -158,7 +158,7 @@ func (t *RpcS2S) MemberAdd(args *ArgMemberAdd, reply *ReplyMemberAdd) error {
 }
 
 func (t *RpcS2S) MemberLeave(args *ArgMemberLeave, reply *ReplyMemberLeave) error {
-	log.Printf("MemberLeave: host=%v port=%v udp_port=%v id=%v",
+	log.Printf("[Info] MemberLeave: host %v, port %v, udp_port %v, id %v",
 		args.Host,
 		args.Port,
 		args.UdpPort,

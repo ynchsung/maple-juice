@@ -30,7 +30,7 @@ func InitServer(path string) {
 func UdpServer(udp net.PacketConn) {
 	buf := make([]byte, 1024)
 	for {
-		n, addr, err := udp.ReadFrom(buf)
+		n, _, err := udp.ReadFrom(buf)
 		if err != nil {
 			log.Printf("[Error] Fail to read udp packet: %v", err)
 			continue
@@ -41,7 +41,12 @@ func UdpServer(udp net.PacketConn) {
 		json.Unmarshal(buf[:n], &res)
 
 		if common.UpdateHeartbeat(res, now) {
-			log.Printf("[Info] Get heartbeat from %v(%v), incarnation %v, time %v", res.Info.Host, addr, res.Incar, res.Timestamp)
+			log.Printf("[Info] Get heartbeat from %v, id %v, incarnation %v, time %v",
+				res.Info.Host,
+				res.Info.MachineID,
+				res.Incar,
+				res.Timestamp,
+			)
 		}
 	}
 }

@@ -40,5 +40,6 @@ func HeartbeatSender() {
 
 func HeartbeatMonitor() {
 	for {
+		time.Sleep(time.Second)
 	}
 }
