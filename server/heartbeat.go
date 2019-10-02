@@ -42,7 +42,7 @@ func HeartbeatSender() {
 		sendByte, _ := json.Marshal(&common.MemberInfo{common.Cfg.Self, incar, now})
 
 		var (
-			chans map[string]chan error
+			chans map[string]chan error = make(map[string]chan error)
 		)
 
 		for _, receiver := range receivers {
