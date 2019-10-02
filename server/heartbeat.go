@@ -48,7 +48,7 @@ func HeartbeatSender() {
 	}
 }
 
-func HandleFailure(c chan error) {
+func HandleFailure(sender common.MemberInfo, memberListCopy []common.MemberInfo, c chan error) {
 	var (
 		args   common.ArgMemberFailure = common.ArgMemberFailure(sender.Info)
 		replys []*common.ReplyMemberFailure
@@ -106,7 +106,7 @@ func HeartbeatMonitor() {
 				)
 
 				c := make(chan error)
-				go HandleFailure(c)
+				go HandleFailure(sender, memberListCopy, c)
 
 				chans = append(chans, c)
 			}
