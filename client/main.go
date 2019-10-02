@@ -96,7 +96,7 @@ func shutdown() {
 
 	// call RpcClient Grep File
 	c := make(chan error)
-	go common.CallRpcClientGeneral("Shutdown", os.Args[1], os.Args[2], &args, &reply, c)
+	go common.CallRpcClientGeneral("Shutdown", os.Args[2], os.Args[3], &args, &reply, c)
 	err := <-c
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
