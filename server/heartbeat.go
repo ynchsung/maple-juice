@@ -18,29 +18,55 @@ const (
 	HEARTBEAT_RECV_AHEAD       int           = 2
 )
 
+// TODO: add 1 second timeout
+func SendHeartbeat(receiver common.MemberInfo, sendByte []byte, c chan error) {
+	conn, err := net.Dial("udp", receiver.Info.Host+receiver.Info.UdpPort)
+	if err != nil {
+		log.Printf("[Error] Fail to send heartbeat to %v: %v", receiver.Info.Host, err)
+		c <- err
+		return
+	}
+	defer conn.Close()
+
+	// TODO: handle write error
+	conn.Write(sendByte)
+	c <- nil
+}
+
 func HeartbeatSender() {
 	incar := 1
 
 	for {
 		now := time.Now()
 		receivers := common.GetHeartbeatReceivers(HEARTBEAT_RECV_BACK, HEARTBEAT_RECV_AHEAD)
-		send_byte, _ := json.Marshal(&common.MemberInfo{common.Cfg.Self, incar, now})
+		sendByte, _ := json.Marshal(&common.MemberInfo{common.Cfg.Self, incar, now})
 
-		// TODO: send heartbeat in multi-threads
+		var (
+			chans map[string]chan error
+		)
+
 		for _, receiver := range receivers {
-			conn, err := net.Dial("udp", receiver.Info.Host+receiver.Info.UdpPort)
-			if err != nil {
-				log.Printf("[Error] Fail to send heartbeat to %v: %v", receiver.Info.Host, err)
-				continue
-			}
+			c := make(chan error)
+			go SendHeartbeat(receiver, sendByte, c)
 
-			conn.Write(send_byte)
-			conn.Close()
-			log.Printf("[Info] Send heartbeat to %v, incarnation %v, timestamp %v",
-				receiver.Info.Host,
-				incar,
-				now.Unix(),
-			)
+			chans[receiver.Info.Host] = c
+		}
+
+		// Wait for all heartbeat sending thread
+		for key, _ := range receivers {
+			err := <-chans[key]
+			if err != nil {
+				log.Printf("[Error] Fail to send udp heartbeat to %v: %v",
+					key,
+					err,
+				)
+			} else {
+				log.Printf("[Info] Send udp heartbeat to %v, incarnation %v, timestamp %v",
+					key,
+					incar,
+					now.Unix(),
+				)
+			}
 		}
 
 		incar += 1
@@ -70,8 +96,18 @@ func HandleFailure(sender common.MemberInfo, memberListCopy []common.MemberInfo,
 	}
 
 	// Wait for all RpcS2S
-	for _, c2 := range chans {
-		_ = <-c2
+	for i, _ := range memberListCopy {
+		if memberListCopy[i].Info.Host == sender.Info.Host {
+			continue
+		}
+
+		err := <-chans[i]
+		if err != nil {
+			log.Printf("[Error] Fail to send MemberFailure to %v: %v",
+				memberListCopy[i].Info.Host,
+				err,
+			)
+		}
 	}
 
 	c <- nil
@@ -93,7 +129,7 @@ func HeartbeatMonitor() {
 					sender.Info.Host,
 					sender.Info.MachineID,
 					sender.Incar,
-					sender.Timestamp,
+					sender.Timestamp.Unix(),
 					now.Unix(),
 				)
 
@@ -101,7 +137,7 @@ func HeartbeatMonitor() {
 					sender.Info.Host,
 					sender.Info.MachineID,
 					sender.Incar,
-					sender.Timestamp,
+					sender.Timestamp.Unix(),
 					now.Unix(),
 				)
 
@@ -113,7 +149,7 @@ func HeartbeatMonitor() {
 		}
 
 		for _, c := range chans {
-			<-c
+			_ = <-c
 		}
 
 		time.Sleep(HEARTBEAT_MONITOR_INTERVAL)

@@ -8,6 +8,8 @@ import (
  * It should be called by creating a go-routine, and passing a channel for waiting
  */
 
+// TODO: add 1 second timeout
+
 func CallRpcClientGeneral(rpc_name string, host string, port string, args interface{}, reply interface{}, c chan error) {
 	client, err := rpc.DialHTTP("tcp", host+port)
 	if err != nil {

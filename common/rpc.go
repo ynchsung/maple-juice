@@ -25,8 +25,14 @@ func (t *RpcClient) GrepFile(args *ArgGrep, reply *ReplyGrepList) error {
 	}
 
 	// Wait for all RpcS2S
-	for _, c := range chans {
-		_ = <-c
+	for i, _ := range Cfg.ClusterInfo.Hosts {
+		err := <-chans[i]
+		if err != nil {
+			log.Printf("[Error] Fail to send GrepFile to %v: %v",
+				Cfg.ClusterInfo.Hosts[i].Host,
+				err,
+			)
+		}
 	}
 
 	return nil
@@ -55,8 +61,18 @@ func (t *RpcClient) Shutdown(args *ArgShutdown, reply *ReplyShutdown) error {
 	}
 
 	// Wait for all RpcS2S
-	for _, c := range chans {
-		_ = <-c
+	for i, _ := range members {
+		if members[i].Info.Host == Cfg.Self.Host {
+			continue
+		}
+
+		err := <-chans[i]
+		if err != nil {
+			log.Printf("[Error] Fail to send MemberLeave to %v: %v",
+				members[i].Info.Host,
+				err,
+			)
+		}
 	}
 
 	log.Printf("[Info] Shutdown")
@@ -127,8 +143,18 @@ func (t *RpcS2S) MemberJoin(args *ArgMemberJoin, reply *ReplyMemberJoin) error {
 		}
 
 		// Wait for all RpcS2S
-		for _, c := range chans {
-			_ = <-c
+		for i, _ := range members {
+			if members[i].Info.Host == Cfg.Self.Host {
+				continue
+			}
+
+			err := <-chans[i]
+			if err != nil {
+				log.Printf("[Error] Fail to send MemberJoin to %v: %v",
+					members[i].Info.Host,
+					err,
+				)
+			}
 		}
 	}
 
@@ -139,7 +165,14 @@ func (t *RpcS2S) MemberJoin(args *ArgMemberJoin, reply *ReplyMemberJoin) error {
 		c2     chan error = make(chan error)
 	)
 	go CallRpcS2SGeneral("MemberAdd", args.Host, args.Port, &arg2, &reply2, c2)
-	_ = <-c2 // assume no error
+
+	err := <-c2
+	if err != nil {
+		log.Printf("[Error] Fail to send MemberAdd to %v: %v",
+			args.Host,
+			err,
+		)
+	}
 
 	AddMember(HostInfo(*args))
 	return nil
