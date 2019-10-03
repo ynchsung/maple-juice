@@ -87,7 +87,7 @@ func HandleFailure(sender common.MemberInfo, memberListCopy []common.MemberInfo,
 
 		task := common.RpcAsyncCallerTask{
 			"MemberFailure",
-			&mem.Info,
+			mem.Info,
 			&args,
 			&common.ReplyMemberFailure{true, ""},
 			make(chan error),

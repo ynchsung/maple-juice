@@ -94,7 +94,7 @@ func main() {
 
 		task := common.RpcAsyncCallerTask{
 			"MemberJoin",
-			&common.Cfg.Introducer,
+			common.Cfg.Introducer,
 			&args,
 			&common.ReplyMemberJoin{},
 			make(chan error),

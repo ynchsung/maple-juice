@@ -6,7 +6,7 @@ import (
 
 type RpcAsyncCallerTask struct {
 	RpcName string
-	Info    *HostInfo
+	Info    HostInfo
 	Args    interface{}
 	Reply   interface{}
 	Chan    chan error

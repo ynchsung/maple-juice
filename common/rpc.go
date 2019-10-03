@@ -21,7 +21,7 @@ func (t *RpcClient) GrepFile(args *ArgGrep, reply *ReplyGrepList) error {
 
 		go CallRpcS2SGrepFile(host.Host, host.Port, args, r, c)
 
-		tasks = append(tasks, RpcAsyncCallerTask{"GrepFile", &host, args, r, c})
+		tasks = append(tasks, RpcAsyncCallerTask{"GrepFile", host, args, r, c})
 		*reply = append(*reply, r)
 	}
 
@@ -52,7 +52,7 @@ func (t *RpcClient) Shutdown(args *ArgShutdown, reply *ReplyShutdown) error {
 
 		task := RpcAsyncCallerTask{
 			"MemberLeave",
-			&mem.Info,
+			mem.Info,
 			&args2,
 			&ReplyMemberLeave{true, ""},
 			make(chan error),
@@ -132,7 +132,7 @@ func (t *RpcS2S) MemberJoin(args *ArgMemberJoin, reply *ReplyMemberJoin) error {
 
 			task := RpcAsyncCallerTask{
 				"MemberJoin",
-				&mem.Info,
+				mem.Info,
 				args,
 				&ReplyMemberJoin{true, ""},
 				make(chan error),
@@ -160,7 +160,7 @@ func (t *RpcS2S) MemberJoin(args *ArgMemberJoin, reply *ReplyMemberJoin) error {
 
 	task := RpcAsyncCallerTask{
 		"MemberAdd",
-		&HostInfo{args.Host, args.Port, "", 0},
+		HostInfo{args.Host, args.Port, "", 0},
 		&arg2,
 		&ReplyMemberAdd{},
 		make(chan error),

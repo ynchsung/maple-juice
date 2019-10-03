@@ -11,7 +11,7 @@ func go_grep_log(args *common.ArgGrep, reply *common.ReplyGrepList, flag bool) {
 	// call RpcClient Grep File
 	task := common.RpcAsyncCallerTask{
 		"GrepFile",
-		&common.HostInfo{os.Args[2], os.Args[3], "", 0},
+		common.HostInfo{os.Args[2], os.Args[3], "", 0},
 		args,
 		reply,
 		make(chan error),
@@ -105,7 +105,7 @@ func shutdown() {
 	// call RpcClient Grep File
 	task := common.RpcAsyncCallerTask{
 		"Shutdown",
-		&common.HostInfo{os.Args[2], os.Args[3], "", 0},
+		common.HostInfo{os.Args[2], os.Args[3], "", 0},
 		&args,
 		&reply,
 		make(chan error),
