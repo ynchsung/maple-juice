@@ -3,6 +3,7 @@ package common
 import (
 	"log"
 	"os"
+	"time"
 )
 
 type RpcClient struct {
@@ -12,17 +13,22 @@ type RpcS2S struct {
 }
 
 func (t *RpcClient) GrepFile(args *ArgGrep, reply *ReplyGrepList) error {
-	var tasks []RpcAsyncCallerTask
+	var tasks []*RpcAsyncCallerTask
 
 	// Send RpcS2S Grep File for all machines in the cluster
 	for _, host := range Cfg.ClusterInfo.Hosts {
-		r := &ReplyGrep{host.Host, true, "", 0, []*GrepInfo{}}
-		c := make(chan error)
+		task := &RpcAsyncCallerTask{
+			"GrepFile",
+			host,
+			args,
+			&ReplyGrep{host.Host, true, "", 0, []*GrepInfo{}},
+			make(chan error),
+		}
 
-		go CallRpcS2SGrepFile(host.Host, host.Port, args, r, c)
+		go CallRpcS2SGrepFile(host.Host, host.Port, args, task.Reply.(*ReplyGrep), task.Chan)
 
-		tasks = append(tasks, RpcAsyncCallerTask{"GrepFile", host, args, r, c})
-		*reply = append(*reply, r)
+		tasks = append(tasks, task)
+		*reply = append(*reply, task.Reply.(*ReplyGrep))
 	}
 
 	// Wait for all RpcAsyncCallerTask
@@ -40,7 +46,7 @@ func (t *RpcClient) GrepFile(args *ArgGrep, reply *ReplyGrepList) error {
 }
 
 func (t *RpcClient) Shutdown(args *ArgShutdown, reply *ReplyShutdown) error {
-	var tasks []RpcAsyncCallerTask
+	var tasks []*RpcAsyncCallerTask
 
 	// Send RpcS2S Leave to all members
 	members := GetMemberList()
@@ -50,7 +56,7 @@ func (t *RpcClient) Shutdown(args *ArgShutdown, reply *ReplyShutdown) error {
 			continue
 		}
 
-		task := RpcAsyncCallerTask{
+		task := &RpcAsyncCallerTask{
 			"MemberLeave",
 			mem.Info,
 			&args2,
@@ -58,7 +64,7 @@ func (t *RpcClient) Shutdown(args *ArgShutdown, reply *ReplyShutdown) error {
 			make(chan error),
 		}
 
-		go CallRpcS2SGeneral(&task)
+		go CallRpcS2SGeneral(task)
 
 		tasks = append(tasks, task)
 	}
@@ -75,7 +81,10 @@ func (t *RpcClient) Shutdown(args *ArgShutdown, reply *ReplyShutdown) error {
 	}
 
 	log.Printf("[Info] Shutdown")
-	os.Exit(0)
+	go func() {
+		time.Sleep(2 * time.Second)
+		os.Exit(0)
+	}()
 
 	return nil
 }
@@ -122,7 +131,7 @@ func (t *RpcS2S) MemberJoin(args *ArgMemberJoin, reply *ReplyMemberJoin) error {
 
 	if Cfg.Self.Host == Cfg.Introducer.Host {
 		// introducer should forward add member to all other members
-		var tasks []RpcAsyncCallerTask
+		var tasks []*RpcAsyncCallerTask
 
 		members := GetMemberList()
 		for _, mem := range members {
@@ -130,7 +139,7 @@ func (t *RpcS2S) MemberJoin(args *ArgMemberJoin, reply *ReplyMemberJoin) error {
 				continue
 			}
 
-			task := RpcAsyncCallerTask{
+			task := &RpcAsyncCallerTask{
 				"MemberJoin",
 				mem.Info,
 				args,
@@ -138,7 +147,7 @@ func (t *RpcS2S) MemberJoin(args *ArgMemberJoin, reply *ReplyMemberJoin) error {
 				make(chan error),
 			}
 
-			go CallRpcS2SGeneral(&task)
+			go CallRpcS2SGeneral(task)
 
 			tasks = append(tasks, task)
 		}

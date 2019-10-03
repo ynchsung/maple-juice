@@ -46,11 +46,8 @@ func HeartbeatSender() {
 		)
 
 		for _, receiver := range receivers {
-			c := make(chan error)
-
-			go SendHeartbeat(receiver, sendByte, c)
-
-			chans[receiver.Info.Host] = c
+			chans[receiver.Info.Host] = make(chan error)
+			go SendHeartbeat(receiver, sendByte, chans[receiver.Info.Host])
 		}
 
 		// Wait for all heartbeat sending thread
@@ -76,7 +73,7 @@ func HeartbeatSender() {
 }
 
 func HandleFailure(sender common.MemberInfo, memberListCopy []common.MemberInfo, c chan error) {
-	var tasks []common.RpcAsyncCallerTask
+	var tasks []*common.RpcAsyncCallerTask
 
 	args := common.ArgMemberFailure(sender.Info)
 	for _, mem := range memberListCopy {
@@ -85,7 +82,7 @@ func HandleFailure(sender common.MemberInfo, memberListCopy []common.MemberInfo,
 			continue
 		}
 
-		task := common.RpcAsyncCallerTask{
+		task := &common.RpcAsyncCallerTask{
 			"MemberFailure",
 			mem.Info,
 			&args,
@@ -93,7 +90,7 @@ func HandleFailure(sender common.MemberInfo, memberListCopy []common.MemberInfo,
 			make(chan error),
 		}
 
-		go common.CallRpcS2SGeneral(&task)
+		go common.CallRpcS2SGeneral(task)
 
 		tasks = append(tasks, task)
 	}
@@ -117,10 +114,7 @@ func HeartbeatMonitor() {
 		now := time.Now()
 		senderMap, memberListCopy := common.PrepareHeartbeatInfoForMonitor(HEARTBEAT_RECV_BACK, HEARTBEAT_RECV_AHEAD)
 
-		var (
-			chans []chan error
-		)
-
+		var chans []chan error
 		for _, sender := range senderMap {
 			if now.After(sender.Timestamp.Add(HEARTBEAT_TIMEOUT)) {
 				// handle timeout
@@ -140,10 +134,8 @@ func HeartbeatMonitor() {
 					now.Unix(),
 				)
 
-				c := make(chan error)
-				go HandleFailure(sender, memberListCopy, c)
-
-				chans = append(chans, c)
+				chans = append(chans, make(chan error))
+				go HandleFailure(sender, memberListCopy, chans[len(chans)-1])
 			}
 		}
 

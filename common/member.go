@@ -110,18 +110,12 @@ func AddMember(info HostInfo) error {
 	now := time.Now()
 	MemberList = append(MemberList, MemberInfo{info, 0, now})
 
-	pos := len(MemberList) - 1
-	for {
-		if pos == 0 {
-			break
-		}
-
+	for pos := len(MemberList) - 1; pos > 0; pos-- {
 		if MemberList[pos-1].Info.MachineID > MemberList[pos].Info.MachineID {
 			MemberList[pos-1], MemberList[pos] = MemberList[pos], MemberList[pos-1]
 		} else {
 			break
 		}
-		pos -= 1
 	}
 
 	return nil
