@@ -84,8 +84,8 @@ func PrepareHeartbeatInfoForMonitor(back int, ahead int) (map[string]MemberInfo,
 			// update non-sender timestamp to avoid
 			// false detection on new senders when the member list changes
 			for j := 0; j < len(MemberList); j++ {
-				if _, ok := senderMap[MemberList[i].Info.Host]; !ok {
-					MemberList[i].Timestamp = now
+				if _, ok := senderMap[MemberList[j].Info.Host]; !ok {
+					MemberList[j].Timestamp = now
 				}
 			}
 
