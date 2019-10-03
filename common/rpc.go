@@ -48,6 +48,9 @@ func (t *RpcClient) GrepFile(args *ArgGrep, reply *ReplyGrepList) error {
 func (t *RpcClient) Shutdown(args *ArgShutdown, reply *ReplyShutdown) error {
 	var tasks []*RpcAsyncCallerTask
 
+	SetShutdownFlag()
+	time.Sleep(time.Second)
+
 	// Send RpcS2S Leave to all members
 	members := GetMemberList()
 	args2 := ArgMemberLeave(Cfg.Self)
