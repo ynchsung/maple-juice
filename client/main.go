@@ -179,14 +179,14 @@ func member_join() {
 	}
 }
 
-func shutdown() {
+func member_leave() {
 	var (
-		args  common.ArgShutdown = 1
-		reply common.ReplyShutdown
+		args  common.ArgClientMemberLeave = 1
+		reply common.ReplyClientMemberLeave
 	)
 
 	task := common.RpcAsyncCallerTask{
-		"Shutdown",
+		"MemberLeave",
 		common.HostInfo{os.Args[2], os.Args[3], "", 0},
 		&args,
 		&reply,
@@ -198,6 +198,11 @@ func shutdown() {
 	err := <-task.Chan
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
+	} else {
+		fmt.Printf("MemberLeave result %v\n", reply.Flag)
+		if !reply.Flag {
+			fmt.Printf("error %v\n", reply.ErrStr)
+		}
 	}
 }
 
@@ -212,7 +217,7 @@ func main() {
 		get_member_list()
 	} else if os.Args[1] == "member_join" {
 		member_join()
-	} else if os.Args[1] == "shutdown" {
-		shutdown()
+	} else if os.Args[1] == "member_leave" {
+		member_leave()
 	}
 }

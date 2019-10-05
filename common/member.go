@@ -39,6 +39,13 @@ func InMemberList(host HostInfo) bool {
 	return false
 }
 
+func EraseMemberList() {
+	MemberListMux.Lock()
+	defer MemberListMux.Unlock()
+
+	MemberList = []MemberInfo{}
+}
+
 func GetHeartbeatReceivers(back int, ahead int) map[string]MemberInfo {
 	MemberListMux.Lock()
 	defer MemberListMux.Unlock()

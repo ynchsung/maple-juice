@@ -14,8 +14,6 @@ import (
 )
 
 func InitServer(path string) {
-	common.ResetShutdownFlag()
-
 	// read general configure file
 	if err := common.ReadConfig(path); err != nil {
 		fmt.Printf("Fail to read configure file: %v", err)

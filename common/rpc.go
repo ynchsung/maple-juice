@@ -2,7 +2,6 @@ package common
 
 import (
 	"log"
-	"os"
 	"time"
 )
 
@@ -87,14 +86,14 @@ func (t *RpcClient) MemberJoin(args *ArgClientMemberJoin, reply *ReplyClientMemb
 	return nil
 }
 
-func (t *RpcClient) Shutdown(args *ArgShutdown, reply *ReplyShutdown) error {
-	var tasks []*RpcAsyncCallerTask
+func (t *RpcClient) MemberLeave(args *ArgClientMemberLeave, reply *ReplyClientMemberLeave) error {
+	members := GetMemberList()
+	EraseMemberList()
 
-	SetShutdownFlag()
 	time.Sleep(time.Second)
 
 	// Send RpcS2S Leave to all members
-	members := GetMemberList()
+	var tasks []*RpcAsyncCallerTask
 	args2 := ArgMemberLeave(Cfg.Self)
 	for _, mem := range members {
 		if mem.Info.Host == Cfg.Self.Host {
@@ -125,11 +124,9 @@ func (t *RpcClient) Shutdown(args *ArgShutdown, reply *ReplyShutdown) error {
 		}
 	}
 
-	log.Printf("[Info] Shutdown")
-	go func() {
-		time.Sleep(2 * time.Second)
-		os.Exit(0)
-	}()
+	log.Printf("[Info] Leave")
+	reply.Flag = true
+	reply.ErrStr = ""
 
 	return nil
 }

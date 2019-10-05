@@ -4,34 +4,7 @@ import (
 	"bufio"
 	"os"
 	"regexp"
-	"sync"
 )
-
-var (
-	ShutdownFlag    bool
-	ShutdownFlagMux sync.Mutex
-)
-
-func GetShutdownFlag() bool {
-	ShutdownFlagMux.Lock()
-	defer ShutdownFlagMux.Unlock()
-
-	return ShutdownFlag
-}
-
-func SetShutdownFlag() {
-	ShutdownFlagMux.Lock()
-	defer ShutdownFlagMux.Unlock()
-
-	ShutdownFlag = true
-}
-
-func ResetShutdownFlag() {
-	ShutdownFlagMux.Lock()
-	defer ShutdownFlagMux.Unlock()
-
-	ShutdownFlag = false
-}
 
 /* GrepFile
  * use regular expression to grep lines from a file

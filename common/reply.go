@@ -10,8 +10,6 @@ type ReplyGrep struct {
 
 type ReplyGrepList []*ReplyGrep
 
-type ReplyShutdown int
-
 type ReplyWriteFile struct {
 	Flag        bool
 	ErrStr      string
@@ -23,6 +21,11 @@ type ReplyGetMachineID HostInfo
 type ReplyGetMemberList []MemberInfo
 
 type ReplyClientMemberJoin struct {
+	Flag   bool
+	ErrStr string
+}
+
+type ReplyClientMemberLeave struct {
 	Flag   bool
 	ErrStr string
 }

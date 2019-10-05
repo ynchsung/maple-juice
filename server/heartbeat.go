@@ -114,10 +114,6 @@ func HandleFailure(failure common.MemberInfo, memberListCopy []common.MemberInfo
 
 func HeartbeatMonitor() {
 	for {
-		if common.GetShutdownFlag() {
-			break
-		}
-
 		now := time.Now()
 		senderMap, memberListCopy := common.PrepareHeartbeatInfoForMonitor(HEARTBEAT_RECV_BACK, HEARTBEAT_RECV_AHEAD)
 
