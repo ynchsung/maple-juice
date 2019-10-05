@@ -37,10 +37,13 @@ func UdpServer(udp net.PacketConn) {
 		}
 
 		now := time.Now()
-		res := common.MemberInfo{}
-		json.Unmarshal(buf[:n], &res)
+		res := HeartbeatMessage{}
+		if err := json.Unmarshal(buf[:n], &res); err != nil {
+			log.Printf("[Verbose] Ignore an invalid heartbeat message: %v", err)
+			continue
+		}
 
-		if common.UpdateHeartbeat(res, now) {
+		if common.UpdateHeartbeat(res.Info, res.Incar, now) {
 			log.Printf("[Info] Get heartbeat from %v, id %v, incarnation %v, timestamp %v",
 				res.Info.Host,
 				res.Info.MachineID,
@@ -70,10 +73,11 @@ func main() {
 		os.Exit(1)
 	}
 
-	log.Printf("[Info] Server start, host %v, port %v, id %v",
+	log.Printf("[Info] Server start, host %v, port %v, id %v, udp_drop_rate %v",
 		common.Cfg.Self.Host,
 		common.Cfg.Self.Port,
 		common.Cfg.Self.MachineID,
+		common.Cfg.UdpDropRate,
 	)
 
 	// listen rpc

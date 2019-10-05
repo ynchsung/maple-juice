@@ -35,15 +35,15 @@ func go_grep_log(args *common.ArgGrep, reply *common.ReplyGrepList, flag bool) {
 
 		fmt.Printf("Host %v got %v lines\n", replyGrep.Host, replyGrep.LineCount)
 		for _, file := range replyGrep.Files {
-			fmt.Printf("\t%v has %v lines\n", file.Path, len(file.Lines))
+			fmt.Printf("  %v has %v lines\n", file.Path, len(file.Lines))
 			lineCount += len(file.Lines)
 
 			if flag {
-				fmt.Printf("\t--\n")
+				fmt.Printf("  --\n")
 				for _, line := range file.Lines {
-					fmt.Printf("\tLine %v: %v\n", line.LineNum, line.LineStr)
+					fmt.Printf("  %v\n", line.LineNum, line.LineStr)
 				}
-				fmt.Printf("\n\t========================\n\n")
+				fmt.Printf("\n  ========================\n\n")
 			}
 		}
 	}
@@ -87,7 +87,7 @@ func grep_log() {
 
 	var (
 		args common.ArgGrep = common.ArgGrep{
-			[]string{"machine.i.log"},
+			[]string{"machine.log"},
 			os.Args[4],
 			isRegex,
 		}

@@ -159,14 +159,14 @@ func DeleteMember(info HostInfo) error {
 	return nil
 }
 
-func UpdateHeartbeat(info MemberInfo, now time.Time) bool {
+func UpdateHeartbeat(info HostInfo, incar int, now time.Time) bool {
 	MemberListMux.Lock()
 	defer MemberListMux.Unlock()
 
 	for i := 0; i < len(MemberList); i++ {
-		if MemberList[i].Info.MachineID == info.Info.MachineID {
-			if MemberList[i].Incar < info.Incar {
-				MemberList[i].Incar = info.Incar
+		if MemberList[i].Info.MachineID == info.MachineID {
+			if MemberList[i].Incar < incar {
+				MemberList[i].Incar = incar
 				MemberList[i].Timestamp = now
 				return true
 			}

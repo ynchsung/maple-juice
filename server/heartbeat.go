@@ -2,8 +2,10 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
+	"math/rand"
 	"net"
 	"time"
 
@@ -14,11 +16,16 @@ const (
 	HEARTBEAT_INTERVAL         time.Duration = 3500 * time.Millisecond
 	HEARTBEAT_TIMEOUT          time.Duration = 4000 * time.Millisecond
 	HEARTBEAT_MONITOR_INTERVAL time.Duration = 500 * time.Millisecond
+	HEARTBEAT_WRITE_TIMEOUT    time.Duration = 500 * time.Millisecond
 	HEARTBEAT_RECV_BACK        int           = 1
 	HEARTBEAT_RECV_AHEAD       int           = 2
 )
 
-// TODO: add 1 second timeout
+type HeartbeatMessage struct {
+	Info  common.HostInfo `json:"info"`
+	Incar int             `json:"incarnation"`
+}
+
 func SendHeartbeat(receiver common.MemberInfo, sendByte []byte, c chan error) {
 	conn, err := net.Dial("udp", receiver.Info.Host+receiver.Info.UdpPort)
 	if err != nil {
@@ -28,30 +35,50 @@ func SendHeartbeat(receiver common.MemberInfo, sendByte []byte, c chan error) {
 	}
 	defer conn.Close()
 
-	// TODO: handle write error
-	conn.Write(sendByte)
+	conn.SetWriteDeadline(time.Now().Add(HEARTBEAT_WRITE_TIMEOUT))
+	n, err := conn.Write(sendByte)
+	if err != nil {
+		c <- nil
+		return
+	} else if n != len(sendByte) {
+		c <- errors.New("only partial bytes were sent")
+		return
+	}
+
 	c <- nil
 }
 
 func HeartbeatSender() {
+	// initialize random seed and random generator
+	seed := rand.NewSource(time.Now().UnixNano())
+	rg := rand.New(seed)
+
 	incar := 1
 
 	for {
 		now := time.Now()
 		receivers := common.GetHeartbeatReceivers(HEARTBEAT_RECV_BACK, HEARTBEAT_RECV_AHEAD)
-		sendByte, _ := json.Marshal(&common.MemberInfo{common.Cfg.Self, incar, now})
+		sendByte, _ := json.Marshal(&HeartbeatMessage{common.Cfg.Self, incar})
 
 		var (
 			chans map[string]chan error = make(map[string]chan error)
 		)
 
 		for _, receiver := range receivers {
-			chans[receiver.Info.Host] = make(chan error)
-			go SendHeartbeat(receiver, sendByte, chans[receiver.Info.Host])
+			num := rg.Intn(100)
+			if float64(num) >= 100.0*common.Cfg.UdpDropRate-1e-5 {
+				chans[receiver.Info.Host] = make(chan error)
+				go SendHeartbeat(receiver, sendByte, chans[receiver.Info.Host])
+			} else {
+				log.Printf("[Test] Udp heartbeat drop, host %v, random number %v (out of 100)",
+					receiver.Info.Host,
+					num,
+				)
+			}
 		}
 
 		// Wait for all heartbeat sending thread
-		for key, _ := range receivers {
+		for key, _ := range chans {
 			err := <-chans[key]
 			if err != nil {
 				log.Printf("[Error] Fail to send udp heartbeat to %v: %v",

@@ -55,6 +55,12 @@ func (t *RpcClient) GetMemberList(args *ArgGetMemberList, reply *ReplyGetMemberL
 }
 
 func (t *RpcClient) MemberJoin(args *ArgClientMemberJoin, reply *ReplyClientMemberJoin) error {
+	if InMemberList(Cfg.Self) {
+		reply.Flag = false
+		reply.ErrStr = "Already join"
+		return nil
+	}
+
 	AddMember(Cfg.Self)
 	if Cfg.Self.Host != Cfg.Introducer.Host {
 		// not introducer

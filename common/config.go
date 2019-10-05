@@ -21,6 +21,7 @@ type Cluster struct {
 
 type Config struct {
 	Self        HostInfo
+	UdpDropRate float64
 	Introducer  HostInfo
 	LogPath     string
 	ClusterInfo Cluster
@@ -68,6 +69,7 @@ func ReadConfig(path string) error {
 
 	Cfg.Self.Port = tmp.Section("server").Key("port").String()
 	Cfg.Self.UdpPort = tmp.Section("server").Key("udp_port").String()
+	Cfg.UdpDropRate = tmp.Section("server").Key("udp_drop_rate").MustFloat64(0.0)
 	Cfg.Introducer.Host = tmp.Section("server").Key("introducer_host").String()
 	Cfg.Introducer.Port = tmp.Section("server").Key("introducer_port").String()
 	Cfg.Introducer.MachineID = tmp.Section("server").Key("introducer_id").MustInt(-1)
