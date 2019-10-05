@@ -25,4 +25,7 @@ type ArgMemberAdd HostInfo
 
 type ArgMemberLeave HostInfo
 
-type ArgMemberFailure HostInfo
+type ArgMemberFailure struct {
+	MonitorInfo HostInfo
+	FailureInfo HostInfo
+}

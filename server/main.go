@@ -47,7 +47,7 @@ func UdpServer(udp net.PacketConn) {
 				res.Info.Host,
 				res.Info.MachineID,
 				res.Incar,
-				now,
+				now.Unix(),
 			)
 		}
 	}

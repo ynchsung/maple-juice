@@ -259,14 +259,19 @@ func (t *RpcS2S) MemberLeave(args *ArgMemberLeave, reply *ReplyMemberLeave) erro
 }
 
 func (t *RpcS2S) MemberFailure(args *ArgMemberFailure, reply *ReplyMemberFailure) error {
-	// TODO: check if monitor is in the MemberList
-	log.Printf("[Info] MemberFailure: host %v, port %v, udp_port %v, id %v",
-		args.Host,
-		args.Port,
-		args.UdpPort,
-		args.MachineID,
+	// check if monitor is in the MemberList
+	if !InMemberList(args.MonitorInfo) {
+		return nil
+	}
+
+	log.Printf("[Info] MemberFailure (detected by host %v): host %v, port %v, udp_port %v, id %v",
+		args.MonitorInfo.Host,
+		args.FailureInfo.Host,
+		args.FailureInfo.Port,
+		args.FailureInfo.UdpPort,
+		args.FailureInfo.MachineID,
 	)
 
-	DeleteMember(HostInfo(*args))
+	DeleteMember(args.FailureInfo)
 	return nil
 }

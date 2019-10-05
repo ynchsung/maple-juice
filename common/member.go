@@ -26,6 +26,19 @@ func GetMemberList() []MemberInfo {
 	return ret
 }
 
+func InMemberList(host HostInfo) bool {
+	MemberListMux.Lock()
+	defer MemberListMux.Unlock()
+
+	for _, mem := range MemberList {
+		if mem.Info.Host == host.Host {
+			return true
+		}
+	}
+
+	return false
+}
+
 func GetHeartbeatReceivers(back int, ahead int) map[string]MemberInfo {
 	MemberListMux.Lock()
 	defer MemberListMux.Unlock()

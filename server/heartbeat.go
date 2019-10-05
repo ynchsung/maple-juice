@@ -72,13 +72,16 @@ func HeartbeatSender() {
 	}
 }
 
-func HandleFailure(sender common.MemberInfo, memberListCopy []common.MemberInfo, c chan error) {
+func HandleFailure(failure common.MemberInfo, memberListCopy []common.MemberInfo, c chan error) {
 	var tasks []*common.RpcAsyncCallerTask
 
-	args := common.ArgMemberFailure(sender.Info)
+	args := common.ArgMemberFailure{
+		common.Cfg.Self,
+		failure.Info,
+	}
 	for _, mem := range memberListCopy {
 		// don't send failure message to the failing machine
-		if mem.Info.Host == sender.Info.Host {
+		if mem.Info.Host == failure.Info.Host {
 			continue
 		}
 
