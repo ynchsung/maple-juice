@@ -89,28 +89,6 @@ func main() {
 	}
 	go UdpServer(udp)
 
-	common.AddMember(common.Cfg.Self)
-	if common.Cfg.Self.Host != common.Cfg.Introducer.Host {
-		// not introducer
-		args := common.ArgMemberJoin(common.Cfg.Self)
-
-		task := common.RpcAsyncCallerTask{
-			"MemberJoin",
-			common.Cfg.Introducer,
-			&args,
-			&common.ReplyMemberJoin{},
-			make(chan error),
-		}
-
-		go common.CallRpcS2SGeneral(&task)
-
-		err := <-task.Chan
-		if err != nil {
-			log.Fatalf("[Fatal] Join error: %v", err)
-			os.Exit(1)
-		}
-	}
-
 	go HeartbeatSender()
 	go HeartbeatMonitor()
 

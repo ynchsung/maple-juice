@@ -18,6 +18,15 @@ type ReplyWriteFile struct {
 	ByteWritten int
 }
 
+type ReplyGetMachineID HostInfo
+
+type ReplyGetMemberList []MemberInfo
+
+type ReplyClientMemberJoin struct {
+	Flag   bool
+	ErrStr string
+}
+
 type ReplyMemberJoin struct {
 	Flag   bool
 	ErrStr string

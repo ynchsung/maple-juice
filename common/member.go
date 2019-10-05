@@ -1,7 +1,6 @@
 package common
 
 import (
-	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -34,6 +33,10 @@ func GetHeartbeatReceivers(back int, ahead int) map[string]MemberInfo {
 	N := len(MemberList)
 	receiverMap := make(map[string]MemberInfo)
 
+	if N == 0 {
+		return receiverMap
+	}
+
 	for i, mem := range MemberList {
 		if mem.Info.Host == Cfg.Self.Host {
 			for j := 1; j <= back; j++ {
@@ -64,6 +67,10 @@ func PrepareHeartbeatInfoForMonitor(back int, ahead int) (map[string]MemberInfo,
 	N := len(MemberList)
 	senderMap := make(map[string]MemberInfo)
 	memberListCopy := make([]MemberInfo, N)
+
+	if N == 0 {
+		return senderMap, memberListCopy
+	}
 
 	copy(memberListCopy, MemberList)
 
@@ -99,13 +106,7 @@ func PrepareHeartbeatInfoForMonitor(back int, ahead int) (map[string]MemberInfo,
 
 func AddMember(info HostInfo) error {
 	MemberListMux.Lock()
-	defer func() {
-		for _, mem := range MemberList {
-			fmt.Printf("Host %v, id %v, timestamp %v\n", mem.Info.Host, mem.Info.MachineID, mem.Timestamp.Unix())
-		}
-		fmt.Printf("\n")
-		MemberListMux.Unlock()
-	}()
+	defer MemberListMux.Unlock()
 
 	now := time.Now()
 	MemberList = append(MemberList, MemberInfo{info, 0, now})
@@ -123,13 +124,7 @@ func AddMember(info HostInfo) error {
 
 func DeleteMember(info HostInfo) error {
 	MemberListMux.Lock()
-	defer func() {
-		for _, mem := range MemberList {
-			fmt.Printf("Host %v, id %v, timestamp %v\n", mem.Info.Host, mem.Info.MachineID, mem.Timestamp.Unix())
-		}
-		fmt.Printf("\n")
-		MemberListMux.Unlock()
-	}()
+	defer MemberListMux.Unlock()
 
 	for i, mem := range MemberList {
 		if mem.Info.MachineID == info.MachineID {

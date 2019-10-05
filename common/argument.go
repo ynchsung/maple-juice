@@ -13,6 +13,12 @@ type ArgWriteFile struct {
 	Content []byte
 }
 
+type ArgGetMachineID int
+
+type ArgGetMemberList int
+
+type ArgClientMemberJoin int
+
 type ArgMemberJoin HostInfo
 
 type ArgMemberAdd HostInfo

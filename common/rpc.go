@@ -45,6 +45,48 @@ func (t *RpcClient) GrepFile(args *ArgGrep, reply *ReplyGrepList) error {
 	return nil
 }
 
+func (t *RpcClient) GetMachineID(args *ArgGetMachineID, reply *ReplyGetMachineID) error {
+	*reply = ReplyGetMachineID(Cfg.Self)
+	return nil
+}
+
+func (t *RpcClient) GetMemberList(args *ArgGetMemberList, reply *ReplyGetMemberList) error {
+	*reply = GetMemberList()
+	return nil
+}
+
+func (t *RpcClient) MemberJoin(args *ArgClientMemberJoin, reply *ReplyClientMemberJoin) error {
+	AddMember(Cfg.Self)
+	if Cfg.Self.Host != Cfg.Introducer.Host {
+		// not introducer
+		args2 := ArgMemberJoin(Cfg.Self)
+
+		task := RpcAsyncCallerTask{
+			"MemberJoin",
+			Cfg.Introducer,
+			&args2,
+			&ReplyMemberJoin{},
+			make(chan error),
+		}
+
+		go CallRpcS2SGeneral(&task)
+
+		err := <-task.Chan
+		if err != nil {
+			log.Printf("[Error] Join error: %v", err)
+			reply.Flag = false
+			reply.ErrStr = err.Error()
+			return nil
+		}
+	}
+
+	log.Printf("[Info] Join")
+	reply.Flag = true
+	reply.ErrStr = ""
+
+	return nil
+}
+
 func (t *RpcClient) Shutdown(args *ArgShutdown, reply *ReplyShutdown) error {
 	var tasks []*RpcAsyncCallerTask
 
@@ -217,6 +259,7 @@ func (t *RpcS2S) MemberLeave(args *ArgMemberLeave, reply *ReplyMemberLeave) erro
 }
 
 func (t *RpcS2S) MemberFailure(args *ArgMemberFailure, reply *ReplyMemberFailure) error {
+	// TODO: check if monitor is in the MemberList
 	log.Printf("[Info] MemberFailure: host %v, port %v, udp_port %v, id %v",
 		args.Host,
 		args.Port,
