@@ -41,7 +41,7 @@ func go_grep_log(args *common.ArgGrep, reply *common.ReplyGrepList, flag bool) {
 			if flag {
 				fmt.Printf("  --\n")
 				for _, line := range file.Lines {
-					fmt.Printf("  %v\n", line.LineNum, line.LineStr)
+					fmt.Printf("  %v\n", line.LineStr)
 				}
 				fmt.Printf("\n  ========================\n\n")
 			}

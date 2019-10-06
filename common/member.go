@@ -1,6 +1,7 @@
 package common
 
 import (
+	"fmt"
 	"log"
 	"sync"
 	"time"
@@ -41,7 +42,10 @@ func InMemberList(host HostInfo) bool {
 
 func EraseMemberList() {
 	MemberListMux.Lock()
-	defer MemberListMux.Unlock()
+	defer func() {
+		fmt.Println("Empty member list")
+		MemberListMux.Unlock()
+	}()
 
 	MemberList = []MemberInfo{}
 }
@@ -126,7 +130,14 @@ func PrepareHeartbeatInfoForMonitor(back int, ahead int) (map[string]MemberInfo,
 
 func AddMember(info HostInfo) error {
 	MemberListMux.Lock()
-	defer MemberListMux.Unlock()
+	defer func() {
+		fmt.Printf("\n[AddMember] MemberList change\n==\n")
+		for _, mem := range MemberList {
+			fmt.Printf("Host %v, id %v, timestamp %v\n", mem.Info.Host, mem.Info.MachineID, mem.Timestamp.Unix())
+		}
+		fmt.Printf("\n\n")
+		MemberListMux.Unlock()
+	}()
 
 	now := time.Now()
 	MemberList = append(MemberList, MemberInfo{info, 0, now})
@@ -144,7 +155,14 @@ func AddMember(info HostInfo) error {
 
 func DeleteMember(info HostInfo) error {
 	MemberListMux.Lock()
-	defer MemberListMux.Unlock()
+	defer func() {
+		fmt.Printf("\n[DeleteMember] MemberList change\n==\n")
+		for _, mem := range MemberList {
+			fmt.Printf("Host %v, id %v, timestamp %v\n", mem.Info.Host, mem.Info.MachineID, mem.Timestamp.Unix())
+		}
+		fmt.Printf("\n\n")
+		MemberListMux.Unlock()
+	}()
 
 	for i, mem := range MemberList {
 		if mem.Info.MachineID == info.MachineID {
