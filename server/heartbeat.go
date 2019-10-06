@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	HEARTBEAT_INTERVAL         time.Duration = 3500 * time.Millisecond
-	HEARTBEAT_TIMEOUT          time.Duration = 4000 * time.Millisecond
+	HEARTBEAT_INTERVAL         time.Duration = 2000 * time.Millisecond
+	HEARTBEAT_TIMEOUT          time.Duration = 4500 * time.Millisecond
 	HEARTBEAT_MONITOR_INTERVAL time.Duration = 500 * time.Millisecond
 	HEARTBEAT_WRITE_TIMEOUT    time.Duration = 500 * time.Millisecond
 	HEARTBEAT_RECV_BACK        int           = 1
