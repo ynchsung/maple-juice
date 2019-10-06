@@ -267,14 +267,26 @@ func (t *RpcS2S) MemberFailure(args *ArgMemberFailure, reply *ReplyMemberFailure
 		return nil
 	}
 
-	log.Printf("[Info] MemberFailure (detected by host %v): host %v, port %v, udp_port %v, id %v",
-		args.MonitorInfo.Host,
-		args.FailureInfo.Host,
-		args.FailureInfo.Port,
-		args.FailureInfo.UdpPort,
-		args.FailureInfo.MachineID,
-	)
-
-	DeleteMember(args.FailureInfo)
+	if args.FailureInfo.Host != Cfg.Self.Host {
+		DeleteMember(args.FailureInfo)
+		log.Printf("[Info] MemberFailure (detected by host %v): host %v, port %v, udp_port %v, id %v",
+			args.MonitorInfo.Host,
+			args.FailureInfo.Host,
+			args.FailureInfo.Port,
+			args.FailureInfo.UdpPort,
+			args.FailureInfo.MachineID,
+		)
+	} else {
+		// if failure machine is myself
+		// then it means false detection
+		EraseMemberList()
+		log.Printf("[Info] MemberFailure false detection (detected by host %v): host %v, port %v, udp_port %v, id %v",
+			args.MonitorInfo.Host,
+			args.FailureInfo.Host,
+			args.FailureInfo.Port,
+			args.FailureInfo.UdpPort,
+			args.FailureInfo.MachineID,
+		)
+	}
 	return nil
 }

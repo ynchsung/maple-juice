@@ -107,10 +107,12 @@ func HandleFailure(failure common.MemberInfo, memberListCopy []common.MemberInfo
 		failure.Info,
 	}
 	for _, mem := range memberListCopy {
-		// don't send failure message to the failing machine
-		if mem.Info.Host == failure.Info.Host {
-			continue
-		}
+		/*
+			// don't send failure message to the failing machine
+			if mem.Info.Host == failure.Info.Host {
+				continue
+			}
+		*/
 
 		task := &common.RpcAsyncCallerTask{
 			"MemberFailure",
@@ -128,7 +130,7 @@ func HandleFailure(failure common.MemberInfo, memberListCopy []common.MemberInfo
 	// Wait for all RpcAsyncCallerTask
 	for _, task := range tasks {
 		err := <-task.Chan
-		if err != nil {
+		if err != nil && task.Info.Host != failure.Info.Host {
 			log.Printf("[Error] Fail to send MemberFailure to %v: %v",
 				task.Info.Host,
 				err,
