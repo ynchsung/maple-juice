@@ -104,7 +104,7 @@ func HeartbeatSender() {
 				}
 			}
 
-			time.Sleep(time.Second)
+			time.Sleep(time.Millisecond * 400)
 		}
 	}()
 
