@@ -7,6 +7,7 @@ import (
 	"log"
 	"math/rand"
 	"net"
+	"sync"
 	"time"
 
 	"ycsw/common"
@@ -26,29 +27,87 @@ type HeartbeatMessage struct {
 	Incar int             `json:"incarnation"`
 }
 
-func SendHeartbeat(receiver common.MemberInfo, sendByte []byte, c chan error) {
-	conn, err := net.Dial("udp", receiver.Info.Host+receiver.Info.UdpPort)
+type HeartbeatTask struct {
+	Target  common.HostInfo
+	Message *HeartbeatMessage
+	Chan    chan error
+}
+
+func SendHeartbeat(task *HeartbeatTask) {
+	conn, err := net.Dial("udp", task.Target.Host+task.Target.UdpPort)
 	if err != nil {
-		log.Printf("[Error] Fail to send heartbeat to %v: %v", receiver.Info.Host, err)
-		c <- err
+		task.Chan <- err
 		return
 	}
 	defer conn.Close()
 
+	sendByte, _ := json.Marshal(task.Message)
+
+	// FIXME: not working?
 	conn.SetWriteDeadline(time.Now().Add(HEARTBEAT_WRITE_TIMEOUT))
+
 	n, err := conn.Write(sendByte)
+	now := time.Now()
 	if err != nil {
-		c <- nil
+		task.Chan <- err
 		return
 	} else if n != len(sendByte) {
-		c <- errors.New("only partial bytes were sent")
+		task.Chan <- errors.New("only partial bytes were sent")
 		return
 	}
 
-	c <- nil
+	log.Printf("[Info] Send udp heartbeat to %v, incarnation %v, timestamp %v",
+		task.Target.Host,
+		task.Message.Incar,
+		now.Unix(),
+	)
+
+	task.Chan <- nil
 }
 
 func HeartbeatSender() {
+	// waiting queue job
+	var (
+		waitQueue    []*HeartbeatTask
+		waitQueueMux sync.Mutex
+	)
+
+	go func() {
+		for {
+			var hbTask *HeartbeatTask = nil
+
+			waitQueueMux.Lock()
+			if len(waitQueue) > 0 {
+				hbTask = waitQueue[0]
+				waitQueue = waitQueue[1:]
+			}
+			waitQueueMux.Unlock()
+
+			if hbTask != nil {
+				select {
+				case err := <-hbTask.Chan:
+					if err != nil {
+						log.Printf("[Error] Fail to send udp heartbeat to %v (incarnation %v): %v",
+							hbTask.Target.Host,
+							hbTask.Message.Incar,
+							err,
+						)
+					}
+				case <-time.After(100 * time.Millisecond):
+					waitQueueMux.Lock()
+					waitQueue = append(waitQueue, hbTask)
+					waitQueueMux.Unlock()
+					log.Printf("[Verbose] Udp heartbeat sending task stuck (host %v, incarnation %v)",
+						hbTask.Target.Host,
+						hbTask.Message.Incar,
+					)
+				}
+			}
+
+			time.Sleep(time.Second)
+		}
+	}()
+
 	// initialize random seed and random generator
 	seed := rand.NewSource(time.Now().UnixNano())
 	rg := rand.New(seed)
@@ -56,40 +115,26 @@ func HeartbeatSender() {
 	incar := 1
 
 	for {
-		now := time.Now()
 		receivers := common.GetHeartbeatReceivers(HEARTBEAT_RECV_BACK, HEARTBEAT_RECV_AHEAD)
-		sendByte, _ := json.Marshal(&HeartbeatMessage{common.Cfg.Self, incar})
-
-		var (
-			chans map[string]chan error = make(map[string]chan error)
-		)
+		hbMessage := HeartbeatMessage{common.Cfg.Self, incar}
 
 		for _, receiver := range receivers {
 			num := rg.Intn(100)
 			if float64(num) >= 100.0*common.Cfg.UdpDropRate-1e-5 {
-				chans[receiver.Info.Host] = make(chan error)
-				go SendHeartbeat(receiver, sendByte, chans[receiver.Info.Host])
+				task := &HeartbeatTask{
+					receiver.Info,
+					&hbMessage,
+					make(chan error),
+				}
+				go SendHeartbeat(task)
+
+				waitQueueMux.Lock()
+				waitQueue = append(waitQueue, task)
+				waitQueueMux.Unlock()
 			} else {
 				log.Printf("[Test] Udp heartbeat drop, host %v, random number %v (out of 100)",
 					receiver.Info.Host,
 					num,
-				)
-			}
-		}
-
-		// Wait for all heartbeat sending thread
-		for key, _ := range chans {
-			err := <-chans[key]
-			if err != nil {
-				log.Printf("[Error] Fail to send udp heartbeat to %v: %v",
-					key,
-					err,
-				)
-			} else {
-				log.Printf("[Info] Send udp heartbeat to %v, incarnation %v, timestamp %v",
-					key,
-					incar,
-					now.Unix(),
 				)
 			}
 		}
