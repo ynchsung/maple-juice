@@ -118,6 +118,16 @@ func HeartbeatSender() {
 		receivers := common.GetHeartbeatReceivers(HEARTBEAT_RECV_BACK, HEARTBEAT_RECV_AHEAD)
 		hbMessage := HeartbeatMessage{common.Cfg.Self, incar}
 
+		if len(receivers) == 0 {
+			continue
+		}
+
+		log.Printf("[Verbose] Prepare to send heartbeat to %v hosts, incarnation %v, timestamp %v",
+			len(receivers),
+			incar,
+			time.Now().Unix(),
+		)
+
 		for _, receiver := range receivers {
 			num := rg.Intn(100)
 			if float64(num) >= 100.0*common.Cfg.UdpDropRate-1e-5 {
