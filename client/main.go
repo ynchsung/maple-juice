@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 
 	"ycsw/common"
@@ -206,6 +207,41 @@ func member_leave() {
 	}
 }
 
+func put_file() {
+	var (
+		args  common.ArgClientPutFile
+		reply common.ReplyClientPutFile
+	)
+
+	content, err := ioutil.ReadFile(os.Args[4])
+	if err != nil {
+		panic(err)
+	}
+	args.Filename = os.Args[5]
+	args.Length = len(content)
+	args.Content = content
+
+	task := common.RpcAsyncCallerTask{
+		"PutFile",
+		common.HostInfo{os.Args[2], os.Args[3], "", 0},
+		&args,
+		&reply,
+		make(chan error),
+	}
+
+	go common.CallRpcClientGeneral(&task)
+
+	err = <-task.Chan
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+	} else {
+		fmt.Printf("PutFile result %v\n", reply.Flag)
+		if !reply.Flag {
+			fmt.Printf("error %v\n", reply.ErrStr)
+		}
+	}
+}
+
 func main() {
 	if os.Args[1] == "log" {
 		grep_log()
@@ -219,5 +255,7 @@ func main() {
 		member_join()
 	} else if os.Args[1] == "member_leave" {
 		member_leave()
+	} else if os.Args[1] == "put_file" {
+		put_file()
 	}
 }
