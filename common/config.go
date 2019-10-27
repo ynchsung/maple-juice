@@ -24,6 +24,7 @@ type Config struct {
 	UdpDropRate float64
 	Introducer  HostInfo
 	LogPath     string
+	SDFSDir     string
 	ClusterInfo Cluster
 }
 
@@ -74,6 +75,7 @@ func ReadConfig(path string) error {
 	Cfg.Introducer.Port = tmp.Section("server").Key("introducer_port").String()
 	Cfg.Introducer.MachineID = tmp.Section("server").Key("introducer_id").MustInt(-1)
 	Cfg.LogPath = tmp.Section("paths").Key("log").String()
+	Cfg.SDFSDir = tmp.Section("paths").Key("sdfs_dir").String()
 
 	// read cluster config
 	if err = ReadClusterConfig(tmp.Section("paths").Key("cluster_info").String()); err != nil {

@@ -11,6 +11,10 @@ type RpcClient struct {
 type RpcS2S struct {
 }
 
+//////////////////////////////////////////////
+// RPC Client
+//////////////////////////////////////////////
+
 func (t *RpcClient) GrepFile(args *ArgGrep, reply *ReplyGrepList) error {
 	var tasks []*RpcAsyncCallerTask
 
@@ -136,6 +140,56 @@ func (t *RpcClient) MemberLeave(args *ArgClientMemberLeave, reply *ReplyClientMe
 
 	return nil
 }
+
+// MP3: file ops
+func (t *RpcClient) PutFile(args *ArgClientPutFile, reply *ReplyClientPutFile) error {
+	reply.Flag = true
+	reply.ErrStr = ""
+
+	// TODO: quorum
+	var tasks []*RpcAsyncCallerTask
+
+	k := SDFSHash(args.Filename)
+	members := GetReplicaMembersByKey(k)
+	for _, mem := range members {
+		task := &RpcAsyncCallerTask{
+			"PutFile",
+			mem.Info,
+			&ArgPutFile{args.Filename, args.Length, args.Content},
+			&ReplyPutFile{true, ""},
+			make(chan error),
+		}
+
+		go CallRpcS2SGeneral(task)
+
+		tasks = append(tasks, task)
+	}
+
+	// Wait for all RpcAsyncCallerTask
+	for _, task := range tasks {
+		err := <-task.Chan
+		if err != nil {
+			log.Printf("[Error] Fail to send PutFile to %v: %v",
+				task.Info.Host,
+				err,
+			)
+		}
+	}
+
+	return nil
+}
+
+func (t *RpcClient) GetFile(args *ArgClientGetFile, reply *ReplyClientGetFile) error {
+	return nil
+}
+
+func (t *RpcClient) DeleteFile(args *ArgClientDeleteFile, reply *ReplyClientDeleteFile) error {
+	return nil
+}
+
+//////////////////////////////////////////////
+// RPC S2S
+//////////////////////////////////////////////
 
 func (t *RpcS2S) GrepFile(args *ArgGrep, reply *ReplyGrep) error {
 	reply.Host = Cfg.Self.Host
@@ -288,5 +342,27 @@ func (t *RpcS2S) MemberFailure(args *ArgMemberFailure, reply *ReplyMemberFailure
 			args.FailureInfo.MachineID,
 		)
 	}
+	return nil
+}
+
+// MP3: file ops
+func (t *RpcS2S) PutFile(args *ArgPutFile, reply *ReplyPutFile) error {
+	reply.Flag = true
+	reply.ErrStr = ""
+
+	err := SDFSPutFile(args.Filename, args.Length, args.Content)
+	if err != nil {
+		reply.Flag = false
+		reply.ErrStr = err.Error()
+	}
+
+	return nil
+}
+
+func (t *RpcS2S) GetFile(args *ArgGetFile, reply *ReplyGetFile) error {
+	return nil
+}
+
+func (t *RpcS2S) DeleteFile(args *ArgDeleteFile, reply *ReplyDeleteFile) error {
 	return nil
 }

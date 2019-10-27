@@ -193,3 +193,32 @@ func UpdateHeartbeat(info HostInfo, incar int, now time.Time) bool {
 	}
 	return false
 }
+
+// MP3: sdfs
+func GetReplicaMembersByKey(key int) map[string]MemberInfo {
+	MemberListMux.Lock()
+	defer MemberListMux.Unlock()
+
+	const REPLICA_NUM int = 4
+
+	N := len(MemberList)
+	ret := make(map[string]MemberInfo)
+
+	if N == 0 {
+		return ret
+	}
+
+	for i, mem := range MemberList {
+		if key >= mem.Info.MachineID {
+			for j := 0; j < REPLICA_NUM; j++ {
+				ret[MemberList[(i+j)%N].Info.Host] = MemberList[(i+j)%N]
+			}
+			return ret
+		}
+	}
+
+	for i := 0; i < REPLICA_NUM; i++ {
+		ret[MemberList[i%N].Info.Host] = MemberList[i%N]
+	}
+	return ret
+}
