@@ -28,10 +28,10 @@ var (
 		SDFSRequestsAckCounterMapMux sync.RWMutex
 	*/
 
-	SDFSFileVersionSequenceMap    map[string]int
+	SDFSFileVersionSequenceMap    map[string]int = make(map[string]int)
 	SDFSFileVersionSequenceMapMux sync.RWMutex
 
-	SDFSFileInfoMap    map[string]*SDFSFileInfo
+	SDFSFileInfoMap    map[string]*SDFSFileInfo = make(map[string]*SDFSFileInfo)
 	SDFSFileInfoMapMux sync.RWMutex
 )
 
