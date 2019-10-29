@@ -2,7 +2,14 @@ package common
 
 import (
 	"log"
+	"sync"
 	"time"
+)
+
+// TODO: add a queue to wait tasks
+var (
+	RpcAsyncCallerTaskWaitQueue    []*RpcAsyncCallerTask
+	RpcAsyncCallerTaskWaitQueueMux sync.Mutex
 )
 
 type RpcClient struct {
@@ -146,8 +153,11 @@ func (t *RpcClient) PutFile(args *ArgClientPutFile, reply *ReplyClientPutFile) e
 	reply.Flag = true
 	reply.ErrStr = ""
 
-	// TODO: quorum
-	var tasks []*RpcAsyncCallerTask
+	// add request token into ack counter map
+	token := SDFSGenerateRequestToken()
+	SDFSRequestsAckCounterMapMux.Lock()
+	SDFSRequestsAckCounterMap[token] = 0
+	SDFSRequestsAckCounterMapMux.Unlock()
 
 	k := SDFSHash(args.Filename)
 	members := GetReplicaMembersByKey(k)
@@ -155,25 +165,29 @@ func (t *RpcClient) PutFile(args *ArgClientPutFile, reply *ReplyClientPutFile) e
 		task := &RpcAsyncCallerTask{
 			"PutFile",
 			mem.Info,
-			&ArgPutFile{args.Filename, args.Length, args.Content},
+			&ArgPutFile{token, args.Filename, args.Length, args.Content},
 			&ReplyPutFile{true, ""},
 			make(chan error),
 		}
 
 		go CallRpcS2SGeneral(task)
 
-		tasks = append(tasks, task)
+		RpcAsyncCallerTaskWaitQueueMux.Lock()
+		RpcAsyncCallerTaskWaitQueue = append(RpcAsyncCallerTaskWaitQueue, task)
+		RpcAsyncCallerTaskWaitQueueMux.Unlock()
 	}
 
-	// Wait for all RpcAsyncCallerTask
-	for _, task := range tasks {
-		err := <-task.Chan
-		if err != nil {
-			log.Printf("[Error] Fail to send PutFile to %v: %v",
-				task.Info.Host,
-				err,
-			)
+	// wait for quorum finish writing by checking ack counter map
+	for {
+		SDFSRequestsAckCounterMapMux.RLock()
+		val := SDFSRequestsAckCounterMap[token]
+		SDFSRequestsAckCounterMapMux.RUnlock()
+
+		if val >= SDFS_REPLICA_QUORUM {
+			break
 		}
+
+		time.Sleep(100 * time.Millisecond)
 	}
 
 	return nil
@@ -355,6 +369,8 @@ func (t *RpcS2S) PutFile(args *ArgPutFile, reply *ReplyPutFile) error {
 		reply.Flag = false
 		reply.ErrStr = err.Error()
 	}
+
+	// TODO: send ACK
 
 	return nil
 }

@@ -45,6 +45,7 @@ type ArgMemberFailure struct {
 }
 
 type ArgPutFile struct {
+	Token    string
 	Filename string
 	Length   int
 	Content  []byte
@@ -55,5 +56,6 @@ type ArgGetFile struct {
 }
 
 type ArgDeleteFile struct {
+	Token    string
 	Filename string
 }

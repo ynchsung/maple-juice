@@ -199,8 +199,6 @@ func GetReplicaMembersByKey(key int) map[string]MemberInfo {
 	MemberListMux.Lock()
 	defer MemberListMux.Unlock()
 
-	const REPLICA_NUM int = 4
-
 	N := len(MemberList)
 	ret := make(map[string]MemberInfo)
 
@@ -210,14 +208,14 @@ func GetReplicaMembersByKey(key int) map[string]MemberInfo {
 
 	for i, mem := range MemberList {
 		if mem.Info.MachineID > key {
-			for j := 0; j < REPLICA_NUM; j++ {
+			for j := 0; j < SDFS_REPLICA_NUM; j++ {
 				ret[MemberList[(i+j-1+N)%N].Info.Host] = MemberList[(i+j-1+N)%N]
 			}
 			return ret
 		}
 	}
 
-	for i := 0; i < REPLICA_NUM; i++ {
+	for i := 0; i < SDFS_REPLICA_NUM; i++ {
 		ret[MemberList[(N-1+i)%N].Info.Host] = MemberList[(N-1+i)%N]
 	}
 	return ret
