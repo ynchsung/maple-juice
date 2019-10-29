@@ -11,6 +11,7 @@ import (
 
 type SDFSFileInfo struct {
 	Filename   string
+	Key        int
 	Timestamp  time.Time
 	Version    int
 	DeleteFlag bool
@@ -22,8 +23,16 @@ const (
 )
 
 var (
-	SDFSRequestsAckCounterMap    map[string]int
-	SDFSRequestsAckCounterMapMux sync.RWMutex
+	/*
+		SDFSRequestsAckCounterMap    map[string]int
+		SDFSRequestsAckCounterMapMux sync.RWMutex
+	*/
+
+	SDFSFileVersionSequenceMap    map[string]int
+	SDFSFileVersionSequenceMapMux sync.RWMutex
+
+	SDFSFileInfoMap    map[string]*SDFSFileInfo
+	SDFSFileInfoMapMux sync.RWMutex
 )
 
 func SDFSGenerateRequestToken() string {
@@ -53,7 +62,51 @@ func SDFSPath(filename string) string {
 	return filepath.Join(Cfg.SDFSDir, r.ReplaceAllString(filename, "_"))
 }
 
-func SDFSPutFile(filename string, length int, content []byte) error {
-	_, err := WriteFile(SDFSPath(filename), content[0:length])
-	return err
+func SDFSGetCurrentVersion(filename string) int {
+	SDFSFileInfoMapMux.RLock()
+	defer SDFSFileInfoMapMux.RUnlock()
+
+	if _, ok := SDFSFileInfoMap[filename]; !ok {
+		return 0
+	}
+	return SDFSFileInfoMap[filename].Version
+}
+
+func SDFSUpdateFileVersion(filename string) int {
+	SDFSFileVersionSequenceMapMux.Lock()
+	defer SDFSFileVersionSequenceMapMux.Unlock()
+
+	if _, ok := SDFSFileVersionSequenceMap[filename]; !ok {
+		SDFSFileVersionSequenceMap[filename] = SDFSGetCurrentVersion(filename)
+	}
+
+	SDFSFileVersionSequenceMap[filename] += 1
+	return SDFSFileVersionSequenceMap[filename]
+}
+
+func SDFSPutFile(filename string, version int, length int, content []byte) {
+	SDFSFileInfoMapMux.Lock()
+	defer SDFSFileInfoMapMux.Unlock()
+
+	val, ok := SDFSFileInfoMap[filename]
+	if !ok {
+		SDFSFileInfoMap[filename] = &SDFSFileInfo{
+			filename,
+			SDFSHash(filename),
+			time.Now(),
+			version,
+			false,
+		}
+	} else {
+		if val.Version >= version {
+			// current version is up-to-date or newer, no need to update
+			return
+		}
+		val.Timestamp = time.Now()
+		val.Version = version
+		val.DeleteFlag = false
+	}
+
+	WriteFile(SDFSPath(filename), content[0:length])
+	return
 }

@@ -44,9 +44,20 @@ type ArgMemberFailure struct {
 	FailureInfo HostInfo
 }
 
+type ArgUpdateFileVersion struct {
+	Filename string
+}
+
+/*
+type ArgUpdateFileAck struct {
+	Token string
+}
+*/
+
 type ArgPutFile struct {
 	Token    string
 	Filename string
+	Version  int
 	Length   int
 	Content  []byte
 }
@@ -57,5 +68,6 @@ type ArgGetFile struct {
 
 type ArgDeleteFile struct {
 	Token    string
+	Version  int
 	Filename string
 }

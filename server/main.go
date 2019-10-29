@@ -44,12 +44,14 @@ func UdpServer(udp net.PacketConn) {
 		}
 
 		if common.UpdateHeartbeat(res.Info, res.Incar, now) {
-			log.Printf("[Info] Get heartbeat from %v, id %v, incarnation %v, timestamp %v",
-				res.Info.Host,
-				res.Info.MachineID,
-				res.Incar,
-				now.Unix(),
-			)
+			/*
+				log.Printf("[Info] Get heartbeat from %v, id %v, incarnation %v, timestamp %v",
+					res.Info.Host,
+					res.Info.MachineID,
+					res.Incar,
+					now.Unix(),
+				)
+			*/
 		}
 	}
 }

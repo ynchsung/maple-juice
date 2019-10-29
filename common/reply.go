@@ -67,6 +67,19 @@ type ReplyMemberFailure struct {
 	ErrStr string
 }
 
+type ReplyUpdateFileVersion struct {
+	Flag    bool
+	ErrStr  string
+	Version int
+}
+
+/*
+type ReplyUpdateFileAck struct {
+	Flag   bool
+	ErrStr string
+}
+*/
+
 type ReplyPutFile struct {
 	Flag   bool
 	ErrStr string

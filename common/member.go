@@ -195,28 +195,29 @@ func UpdateHeartbeat(info HostInfo, incar int, now time.Time) bool {
 }
 
 // MP3: sdfs
-func GetReplicaMembersByKey(key int) map[string]MemberInfo {
+// returns main replica, all replicas
+func GetReplicasByKey(key int) (MemberInfo, map[string]MemberInfo) {
 	MemberListMux.Lock()
 	defer MemberListMux.Unlock()
 
 	N := len(MemberList)
-	ret := make(map[string]MemberInfo)
+	replicaMap := make(map[string]MemberInfo)
 
 	if N == 0 {
-		return ret
+		return MemberInfo{}, replicaMap
 	}
 
 	for i, mem := range MemberList {
 		if mem.Info.MachineID > key {
 			for j := 0; j < SDFS_REPLICA_NUM; j++ {
-				ret[MemberList[(i+j-1+N)%N].Info.Host] = MemberList[(i+j-1+N)%N]
+				replicaMap[MemberList[(i+j-1+N)%N].Info.Host] = MemberList[(i+j-1+N)%N]
 			}
-			return ret
+			return MemberList[(i-1+N)%N], replicaMap
 		}
 	}
 
 	for i := 0; i < SDFS_REPLICA_NUM; i++ {
-		ret[MemberList[(N-1+i)%N].Info.Host] = MemberList[(N-1+i)%N]
+		replicaMap[MemberList[(N-1+i)%N].Info.Host] = MemberList[(N-1+i)%N]
 	}
-	return ret
+	return MemberList[N-1], replicaMap
 }

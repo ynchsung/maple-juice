@@ -47,7 +47,7 @@ func SendHeartbeat(task *HeartbeatTask) {
 	conn.SetWriteDeadline(time.Now().Add(HEARTBEAT_WRITE_TIMEOUT))
 
 	n, err := conn.Write(sendByte)
-	now := time.Now()
+	// now := time.Now()
 	if err != nil {
 		task.Chan <- err
 		return
@@ -56,11 +56,13 @@ func SendHeartbeat(task *HeartbeatTask) {
 		return
 	}
 
-	log.Printf("[Info] Send udp heartbeat to %v, incarnation %v, timestamp %v",
-		task.Target.Host,
-		task.Message.Incar,
-		now.Unix(),
-	)
+	/*
+		log.Printf("[Info] Send udp heartbeat to %v, incarnation %v, timestamp %v",
+			task.Target.Host,
+			task.Message.Incar,
+			now.Unix(),
+		)
+	*/
 
 	task.Chan <- nil
 }
@@ -97,10 +99,12 @@ func HeartbeatSender() {
 					waitQueueMux.Lock()
 					waitQueue = append(waitQueue, hbTask)
 					waitQueueMux.Unlock()
-					log.Printf("[Verbose] Udp heartbeat sending task stuck (host %v, incarnation %v)",
-						hbTask.Target.Host,
-						hbTask.Message.Incar,
-					)
+					/*
+						log.Printf("[Verbose] Udp heartbeat sending task stuck (host %v, incarnation %v)",
+							hbTask.Target.Host,
+							hbTask.Message.Incar,
+						)
+					*/
 				}
 			}
 
@@ -122,11 +126,13 @@ func HeartbeatSender() {
 			continue
 		}
 
-		log.Printf("[Verbose] Prepare to send heartbeat to %v hosts, incarnation %v, timestamp %v",
-			len(receivers),
-			incar,
-			time.Now().Unix(),
-		)
+		/*
+			log.Printf("[Verbose] Prepare to send heartbeat to %v hosts, incarnation %v, timestamp %v",
+				len(receivers),
+				incar,
+				time.Now().Unix(),
+			)
+		*/
 
 		for _, receiver := range receivers {
 			num := rg.Intn(100)
