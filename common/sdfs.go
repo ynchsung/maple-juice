@@ -1,6 +1,7 @@
 package common
 
 import (
+	"fmt"
 	"hash/fnv"
 	"math/rand"
 	"path/filepath"
@@ -81,6 +82,7 @@ func SDFSUpdateFileVersion(filename string) int {
 	}
 
 	SDFSFileVersionSequenceMap[filename] += 1
+	fmt.Printf("UpdateFileVersion file %v version %v\n", filename, SDFSFileVersionSequenceMap[filename])
 	return SDFSFileVersionSequenceMap[filename]
 }
 
@@ -106,6 +108,8 @@ func SDFSPutFile(filename string, version int, length int, content []byte) {
 		val.Version = version
 		val.DeleteFlag = false
 	}
+
+	fmt.Printf("PutFile %v version %v\n", filename, version)
 
 	WriteFile(SDFSPath(filename), content[0:length])
 	return
