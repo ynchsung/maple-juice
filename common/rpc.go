@@ -2,6 +2,7 @@ package common
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"reflect"
 	"sync"
@@ -151,7 +152,7 @@ func (t *RpcClient) MemberLeave(args *ArgClientMemberLeave, reply *ReplyClientMe
 }
 
 // MP3: file ops
-func (t *RpcClient) PutFile(args *ArgClientPutFile, reply *ReplyClientPutFile) error {
+func (t *RpcClient) UpdateFile(args *ArgClientUpdateFile, reply *ReplyClientUpdateFile) error {
 	reply.Flag = true
 	reply.ErrStr = ""
 
@@ -187,24 +188,16 @@ func (t *RpcClient) PutFile(args *ArgClientPutFile, reply *ReplyClientPutFile) e
 		return nil
 	}
 
-	// add request token into ack counter map
-	token := SDFSGenerateRequestToken()
-	/*
-		SDFSRequestsAckCounterMapMux.Lock()
-		SDFSRequestsAckCounterMap[token] = 0
-		SDFSRequestsAckCounterMapMux.Unlock()
-	*/
-
 	// send PutFile request to all replicas
 	var tasks []*RpcAsyncCallerTask
 	cases := make([]reflect.SelectCase, len(replicaMap))
 	i := 0
 	for _, mem := range replicaMap {
 		task := &RpcAsyncCallerTask{
-			"PutFile",
+			"UpdateFile",
 			mem.Info,
-			&ArgPutFile{token, args.Filename, versionReply.Version, args.Length, args.Content},
-			&ReplyPutFile{true, ""},
+			&ArgUpdateFile{args.Filename, args.DeleteFlag, versionReply.Version, args.Length, args.Content},
+			&ReplyUpdateFile{true, ""},
 			make(chan error),
 		}
 
@@ -216,21 +209,29 @@ func (t *RpcClient) PutFile(args *ArgClientPutFile, reply *ReplyClientPutFile) e
 	}
 
 	// wait for quorum finish writing
-	for i := 0; i < SDFS_REPLICA_QUORUM; i++ {
+	for i := 0; i < SDFS_REPLICA_QUORUM; {
 		chosen, _, _ := reflect.Select(cases)
-		tasks[chosen] = nil
+		// TODO: error handling
+		if tasks[chosen] != nil {
+			fmt.Printf("%v-th Chosen %v host %v\n", i, chosen, tasks[chosen].Info.Host)
+			tasks[chosen] = nil
+			i += 1
+		}
 	}
 
-	// TODO: put other running tasks into queue
+	// put not finishing task into queue to wait
+	for _, task := range tasks {
+		if task != nil {
+			RpcAsyncCallerTaskWaitQueueMux.Lock()
+			RpcAsyncCallerTaskWaitQueue = append(RpcAsyncCallerTaskWaitQueue, task)
+			RpcAsyncCallerTaskWaitQueueMux.Unlock()
+		}
+	}
 
 	return nil
 }
 
 func (t *RpcClient) GetFile(args *ArgClientGetFile, reply *ReplyClientGetFile) error {
-	return nil
-}
-
-func (t *RpcClient) DeleteFile(args *ArgClientDeleteFile, reply *ReplyClientDeleteFile) error {
 	return nil
 }
 
@@ -400,32 +401,15 @@ func (t *RpcS2S) UpdateFileVersion(args *ArgUpdateFileVersion, reply *ReplyUpdat
 	return nil
 }
 
-/*
-func (t *RpcS2S) UpdateFileAck(args *ArgUpdateFileAck, reply *ReplyUpdateFileAck) error {
+func (t *RpcS2S) UpdateFile(args *ArgUpdateFile, reply *ReplyUpdateFile) error {
 	reply.Flag = true
 	reply.ErrStr = ""
 
-	SDFSRequestsAckCounterMapMux.Lock()
-	SDFSRequestsAckCounterMap[args.Token] += 1
-	SDFSRequestsAckCounterMapMux.Unlock()
-
-	return nil
-}
-*/
-
-func (t *RpcS2S) PutFile(args *ArgPutFile, reply *ReplyPutFile) error {
-	reply.Flag = true
-	reply.ErrStr = ""
-
-	SDFSPutFile(args.Filename, args.Version, args.Length, args.Content)
+	SDFSUpdateFile(args.Filename, args.DeleteFlag, args.Version, args.Length, args.Content)
 
 	return nil
 }
 
 func (t *RpcS2S) GetFile(args *ArgGetFile, reply *ReplyGetFile) error {
-	return nil
-}
-
-func (t *RpcS2S) DeleteFile(args *ArgDeleteFile, reply *ReplyDeleteFile) error {
 	return nil
 }

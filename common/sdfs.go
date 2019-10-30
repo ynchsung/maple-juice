@@ -3,7 +3,6 @@ package common
 import (
 	"fmt"
 	"hash/fnv"
-	"math/rand"
 	"path/filepath"
 	"regexp"
 	"sync"
@@ -16,6 +15,7 @@ type SDFSFileInfo struct {
 	Timestamp  time.Time
 	Version    int
 	DeleteFlag bool
+	Lock       sync.RWMutex
 }
 
 const (
@@ -24,31 +24,12 @@ const (
 )
 
 var (
-	/*
-		SDFSRequestsAckCounterMap    map[string]int
-		SDFSRequestsAckCounterMapMux sync.RWMutex
-	*/
-
 	SDFSFileVersionSequenceMap    map[string]int = make(map[string]int)
 	SDFSFileVersionSequenceMapMux sync.RWMutex
 
 	SDFSFileInfoMap    map[string]*SDFSFileInfo = make(map[string]*SDFSFileInfo)
 	SDFSFileInfoMapMux sync.RWMutex
 )
-
-func SDFSGenerateRequestToken() string {
-	const (
-		l   string = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-		LEN        = 16
-	)
-
-	var ret string = ""
-	for i := 0; i < LEN; i++ {
-		ret += string(l[rand.Intn(len(l))])
-	}
-
-	return ret
-}
 
 func SDFSHash(filename string) int {
 	const M uint32 = 11
@@ -65,12 +46,17 @@ func SDFSPath(filename string) string {
 
 func SDFSGetCurrentVersion(filename string) int {
 	SDFSFileInfoMapMux.RLock()
-	defer SDFSFileInfoMapMux.RUnlock()
+	val, ok := SDFSFileInfoMap[filename]
+	SDFSFileInfoMapMux.RUnlock()
 
-	if _, ok := SDFSFileInfoMap[filename]; !ok {
+	if !ok {
 		return 0
 	}
-	return SDFSFileInfoMap[filename].Version
+
+	val.Lock.RLock()
+	defer val.Lock.RUnlock()
+
+	return val.Version
 }
 
 func SDFSUpdateFileVersion(filename string) int {
@@ -78,7 +64,7 @@ func SDFSUpdateFileVersion(filename string) int {
 	defer SDFSFileVersionSequenceMapMux.Unlock()
 
 	if _, ok := SDFSFileVersionSequenceMap[filename]; !ok {
-		SDFSFileVersionSequenceMap[filename] = SDFSGetCurrentVersion(filename)
+		SDFSFileVersionSequenceMap[filename] = SDFSGetCurrentVersion(filename) + 100
 	}
 
 	SDFSFileVersionSequenceMap[filename] += 1
@@ -86,31 +72,36 @@ func SDFSUpdateFileVersion(filename string) int {
 	return SDFSFileVersionSequenceMap[filename]
 }
 
-func SDFSPutFile(filename string, version int, length int, content []byte) {
+func SDFSUpdateFile(filename string, deleteFlag bool, version int, length int, content []byte) {
 	SDFSFileInfoMapMux.Lock()
-	defer SDFSFileInfoMapMux.Unlock()
-
 	val, ok := SDFSFileInfoMap[filename]
 	if !ok {
-		SDFSFileInfoMap[filename] = &SDFSFileInfo{
+		val = &SDFSFileInfo{
 			filename,
 			SDFSHash(filename),
 			time.Now(),
 			version,
-			false,
+			deleteFlag,
+			sync.RWMutex{},
 		}
-	} else {
-		if val.Version >= version {
-			// current version is up-to-date or newer, no need to update
-			return
-		}
-		val.Timestamp = time.Now()
-		val.Version = version
-		val.DeleteFlag = false
+		SDFSFileInfoMap[filename] = val
 	}
+	SDFSFileInfoMapMux.Unlock()
 
-	fmt.Printf("PutFile %v version %v\n", filename, version)
+	val.Lock.Lock()
+	defer val.Lock.Unlock()
 
-	WriteFile(SDFSPath(filename), content[0:length])
+	if val.Version >= version {
+		// current version is up-to-date or newer, no need to update
+		return
+	}
+	val.Timestamp = time.Now()
+	val.Version = version
+	val.DeleteFlag = deleteFlag
+
+	fmt.Printf("Update %v, version %v, delete %v\n", filename, version, deleteFlag)
+	if !deleteFlag {
+		WriteFile(SDFSPath(filename), content[0:length])
+	}
 	return
 }

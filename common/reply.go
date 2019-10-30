@@ -30,7 +30,7 @@ type ReplyClientMemberLeave struct {
 	ErrStr string
 }
 
-type ReplyClientPutFile struct {
+type ReplyClientUpdateFile struct {
 	Flag   bool
 	ErrStr string
 }
@@ -40,11 +40,6 @@ type ReplyClientGetFile struct {
 	ErrStr  string
 	Length  int
 	Content []byte
-}
-
-type ReplyClientDeleteFile struct {
-	Flag   bool
-	ErrStr string
 }
 
 type ReplyMemberJoin struct {
@@ -73,14 +68,7 @@ type ReplyUpdateFileVersion struct {
 	Version int
 }
 
-/*
-type ReplyUpdateFileAck struct {
-	Flag   bool
-	ErrStr string
-}
-*/
-
-type ReplyPutFile struct {
+type ReplyUpdateFile struct {
 	Flag   bool
 	ErrStr string
 }
@@ -90,9 +78,4 @@ type ReplyGetFile struct {
 	ErrStr  string
 	Length  int
 	Content []byte
-}
-
-type ReplyDeleteFile struct {
-	Flag   bool
-	ErrStr string
 }

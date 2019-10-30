@@ -19,17 +19,14 @@ type ArgClientMemberJoin int
 
 type ArgClientMemberLeave int
 
-type ArgClientPutFile struct {
-	Filename string
-	Length   int
-	Content  []byte
+type ArgClientUpdateFile struct {
+	Filename   string
+	DeleteFlag bool
+	Length     int
+	Content    []byte
 }
 
 type ArgClientGetFile struct {
-	Filename string
-}
-
-type ArgClientDeleteFile struct {
 	Filename string
 }
 
@@ -48,26 +45,14 @@ type ArgUpdateFileVersion struct {
 	Filename string
 }
 
-/*
-type ArgUpdateFileAck struct {
-	Token string
-}
-*/
-
-type ArgPutFile struct {
-	Token    string
-	Filename string
-	Version  int
-	Length   int
-	Content  []byte
+type ArgUpdateFile struct {
+	Filename   string
+	DeleteFlag bool
+	Version    int
+	Length     int
+	Content    []byte
 }
 
 type ArgGetFile struct {
-	Filename string
-}
-
-type ArgDeleteFile struct {
-	Token    string
-	Version  int
 	Filename string
 }

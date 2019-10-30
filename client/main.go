@@ -209,8 +209,8 @@ func member_leave() {
 
 func put_file() {
 	var (
-		args  common.ArgClientPutFile
-		reply common.ReplyClientPutFile
+		args  common.ArgClientUpdateFile
+		reply common.ReplyClientUpdateFile
 	)
 
 	content, err := ioutil.ReadFile(os.Args[4])
@@ -218,11 +218,12 @@ func put_file() {
 		panic(err)
 	}
 	args.Filename = os.Args[5]
+	args.DeleteFlag = false
 	args.Length = len(content)
 	args.Content = content
 
 	task := common.RpcAsyncCallerTask{
-		"PutFile",
+		"UpdateFile",
 		common.HostInfo{os.Args[2], os.Args[3], "", 0},
 		&args,
 		&reply,
@@ -242,6 +243,38 @@ func put_file() {
 	}
 }
 
+func delete_file() {
+	var (
+		args  common.ArgClientUpdateFile
+		reply common.ReplyClientUpdateFile
+	)
+
+	args.Filename = os.Args[4]
+	args.DeleteFlag = true
+	args.Length = 0
+	args.Content = nil
+
+	task := common.RpcAsyncCallerTask{
+		"UpdateFile",
+		common.HostInfo{os.Args[2], os.Args[3], "", 0},
+		&args,
+		&reply,
+		make(chan error),
+	}
+
+	go common.CallRpcClientGeneral(&task)
+
+	err = <-task.Chan
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+	} else {
+		fmt.Printf("DeleteFile result %v\n", reply.Flag)
+		if !reply.Flag {
+			fmt.Printf("Error %v\n", reply.ErrStr)
+		}
+	}
+}
+
 func main() {
 	if os.Args[1] == "log" {
 		grep_log()
@@ -257,5 +290,7 @@ func main() {
 		member_leave()
 	} else if os.Args[1] == "put_file" {
 		put_file()
+	} else if os.Args[1] == "delete_file" {
+		delete_file()
 	}
 }
