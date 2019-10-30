@@ -80,8 +80,8 @@ func SDFSUpdateFile(filename string, deleteFlag bool, version int, length int, c
 			filename,
 			SDFSHash(filename),
 			time.Now(),
-			version,
-			deleteFlag,
+			0,
+			false,
 			sync.RWMutex{},
 		}
 		SDFSFileInfoMap[filename] = val
@@ -102,6 +102,8 @@ func SDFSUpdateFile(filename string, deleteFlag bool, version int, length int, c
 	fmt.Printf("Update %v, version %v, delete %v\n", filename, version, deleteFlag)
 	if !deleteFlag {
 		WriteFile(SDFSPath(filename), content[0:length])
+	} else {
+		DeleteFile(SDFSPath(filename))
 	}
 	return
 }

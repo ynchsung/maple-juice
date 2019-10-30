@@ -60,3 +60,7 @@ func WriteFile(path string, content []byte) (int, error) {
 
 	return fp.Write(content)
 }
+
+func DeleteFile(path string) error {
+	return os.Remove(path)
+}

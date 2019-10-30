@@ -264,7 +264,7 @@ func delete_file() {
 
 	go common.CallRpcClientGeneral(&task)
 
-	err = <-task.Chan
+	err := <-task.Chan
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 	} else {
