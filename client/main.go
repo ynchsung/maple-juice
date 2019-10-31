@@ -282,7 +282,7 @@ func get_file() {
 	)
 
 	task := common.RpcAsyncCallerTask{
-		"UpdateFile",
+		"GetFile",
 		common.HostInfo{os.Args[2], os.Args[3], "", 0},
 		&args,
 		&reply,

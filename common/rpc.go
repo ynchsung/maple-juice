@@ -208,15 +208,28 @@ func (t *RpcClient) UpdateFile(args *ArgClientUpdateFile, reply *ReplyClientUpda
 		i += 1
 	}
 
-	// wait for quorum finish writing
-	for i := 0; i < SDFS_REPLICA_QUORUM; {
-		chosen, _, _ := reflect.Select(cases)
-		// TODO: error handling
+	// wait for quorum finish updating
+	i, j := 0, 0
+	for i < SDFS_REPLICA_QUORUM && j < len(tasks) {
+		chosen, value, _ := reflect.Select(cases)
 		if tasks[chosen] != nil {
-			fmt.Printf("%v-th Chosen %v host %v\n", i, chosen, tasks[chosen].Info.Host)
+			err := value.Interface().(error)
+			if err != nil {
+				log.Printf("[Error] Fail to send UpdateFile to %v: %v",
+					tasks[chosen].Info.Host,
+					err,
+				)
+			} else {
+				fmt.Printf("%v-th Chosen %v, host %v finish updating\n", i, chosen, tasks[chosen].Info.Host)
+				i += 1
+			}
 			tasks[chosen] = nil
-			i += 1
+			j += 1
 		}
+	}
+	if i < SDFS_REPLICA_QUORUM {
+		reply.Flag = false
+		reply.ErrStr = "fail to update file to enough replicas (quorum)"
 	}
 
 	// put not finishing task into queue to wait
@@ -265,35 +278,46 @@ func (t *RpcClient) GetFile(args *ArgClientGetFile, reply *ReplyClientGetFile) e
 
 	// wait for quorum finish reading and choose the latest version
 	maxVersion := -1
-	for i, j := 0, 0; i < SDFS_REPLICA_QUORUM && j < len(tasks); {
-		chosen, _, _ := reflect.Select(cases)
-		// TODO: error handling
+	i, j := 0, 0
+	for i < SDFS_REPLICA_QUORUM && j < len(tasks) {
+		chosen, value, _ := reflect.Select(cases)
 		if tasks[chosen] != nil {
-			r := tasks[chosen].Reply.(ReplyGetFile)
-			if r.Flag {
-				fmt.Printf("%v-th Chosen %v host %v\n", i, chosen, tasks[chosen].Info.Host)
-				if r.Version > maxVersion {
-					maxVersion = r.Version
-					if r.DeleteFlag {
-						reply.Flag = false
-						reply.ErrStr = "file not found"
-						reply.Length = 0
-						reply.Content = nil
-					} else {
-						reply.Flag = true
-						reply.ErrStr = ""
-						reply.Length = r.Length
-						reply.Content = r.Content
+			err := value.Interface().(error)
+			if err != nil {
+				log.Printf("[Error] Fail to send GetFile to %v: %v",
+					tasks[chosen].Info.Host,
+					err,
+				)
+			} else {
+				r := tasks[chosen].Reply.(*ReplyGetFile)
+				if r.Flag {
+					fmt.Printf("%v-th chosen %v, host %v finish reading\n", i, chosen, tasks[chosen].Info.Host)
+					if r.Version > maxVersion {
+						maxVersion = r.Version
+						if r.DeleteFlag {
+							reply.Flag = false
+							reply.ErrStr = "file not found"
+							reply.Length = 0
+							reply.Content = nil
+						} else {
+							reply.Flag = true
+							reply.ErrStr = ""
+							reply.Length = r.Length
+							reply.Content = r.Content
+						}
 					}
+					i += 1
 				}
-				i += 1
 			}
 			tasks[chosen] = nil
 			j += 1
 		}
 	}
 
-	if maxVersion < 0 {
+	if i < SDFS_REPLICA_QUORUM {
+		reply.Flag = false
+		reply.ErrStr = "fail to read file from enough replicas (quorum)"
+	} else if maxVersion < 0 {
 		reply.Flag = false
 		reply.ErrStr = "file not found"
 		reply.Length = 0
