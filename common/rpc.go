@@ -156,7 +156,10 @@ func (t *RpcClient) UpdateFile(args *ArgClientUpdateFile, reply *ReplyClientUpda
 	reply.Flag = true
 	reply.ErrStr = ""
 
-	k := SDFSHash(args.Filename)
+	filename := args.Filename
+	deleteFlag := args.DeleteFlag
+
+	k := SDFSHash(filename)
 	mainReplica, replicaMap := GetReplicasByKey(k)
 	if len(replicaMap) == 0 {
 		reply.Flag = false
@@ -165,18 +168,17 @@ func (t *RpcClient) UpdateFile(args *ArgClientUpdateFile, reply *ReplyClientUpda
 	}
 
 	// update file version # on main replica
-	versionReply := ReplyUpdateFileVersion{true, "", -1}
 	task := &RpcAsyncCallerTask{
 		"UpdateFileVersion",
 		mainReplica.Info,
-		&ArgUpdateFileVersion{args.Filename},
-		&versionReply,
+		&ArgUpdateFileVersion{filename, args.ForceFlag},
+		&ReplyUpdateFileVersion{true, "", false, -1},
 		make(chan error),
 	}
 	go CallRpcS2SGeneral(task)
 	err := <-task.Chan
-	if err == nil && !versionReply.Flag {
-		err = errors.New(versionReply.ErrStr)
+	if err == nil && !task.Reply.(*ReplyUpdateFileVersion).Flag {
+		err = errors.New(task.Reply.(*ReplyUpdateFileVersion).ErrStr)
 	}
 	if err != nil {
 		log.Printf("[Error] Fail to update file version on main replica %v: %v",
@@ -185,8 +187,10 @@ func (t *RpcClient) UpdateFile(args *ArgClientUpdateFile, reply *ReplyClientUpda
 		)
 		reply.Flag = false
 		reply.ErrStr = "fail to update file version on main replica " + task.Info.Host + ": " + err.Error()
+		reply.NeedForce = task.Reply.(*ReplyUpdateFileVersion).NeedForce
 		return nil
 	}
+	version := task.Reply.(*ReplyUpdateFileVersion).Version
 
 	// send PutFile request to all replicas
 	var tasks []*RpcAsyncCallerTask
@@ -196,7 +200,7 @@ func (t *RpcClient) UpdateFile(args *ArgClientUpdateFile, reply *ReplyClientUpda
 		task := &RpcAsyncCallerTask{
 			"UpdateFile",
 			mem.Info,
-			&ArgUpdateFile{args.Filename, args.DeleteFlag, versionReply.Version, args.Length, args.Content},
+			&ArgUpdateFile{filename, deleteFlag, version, args.Length, args.Content},
 			&ReplyUpdateFile{true, ""},
 			make(chan error),
 		}
@@ -215,17 +219,22 @@ func (t *RpcClient) UpdateFile(args *ArgClientUpdateFile, reply *ReplyClientUpda
 		if tasks[chosen] != nil {
 			errInt := value.Interface()
 			if errInt != nil {
-				log.Printf("[Error] Fail to send UpdateFile to %v: %v",
+				log.Printf("[Error] Quorum update %v-th node (host %v, file %v, version %v, delete %v) error: %v",
+					j,
 					tasks[chosen].Info.Host,
-					errInt.(error),
-				)
-				fmt.Printf("%v-th fail to send UpdateFile to %v: %v\n",
-					i,
-					tasks[chosen].Info.Host,
+					filename,
+					version,
+					deleteFlag,
 					errInt.(error),
 				)
 			} else {
-				fmt.Printf("%v-th chosen %v, host %v finish updating\n", i, chosen, tasks[chosen].Info.Host)
+				log.Printf("[Info] Quorum update %v-th node (host %v, file %v, version %v, delete %v) success",
+					j,
+					tasks[chosen].Info.Host,
+					filename,
+					version,
+					deleteFlag,
+				)
 				i += 1
 			}
 			tasks[chosen] = nil
@@ -253,7 +262,9 @@ func (t *RpcClient) GetFile(args *ArgClientGetFile, reply *ReplyClientGetFile) e
 	reply.Flag = true
 	reply.ErrStr = ""
 
-	k := SDFSHash(args.Filename)
+	filename := args.Filename
+
+	k := SDFSHash(filename)
 	_, replicaMap := GetReplicasByKey(k)
 	if len(replicaMap) == 0 {
 		reply.Flag = false
@@ -269,7 +280,7 @@ func (t *RpcClient) GetFile(args *ArgClientGetFile, reply *ReplyClientGetFile) e
 		task := &RpcAsyncCallerTask{
 			"GetFile",
 			mem.Info,
-			&ArgGetFile{args.Filename},
+			&ArgGetFile{filename},
 			&ReplyGetFile{},
 			make(chan error),
 		}
@@ -289,19 +300,29 @@ func (t *RpcClient) GetFile(args *ArgClientGetFile, reply *ReplyClientGetFile) e
 		if tasks[chosen] != nil {
 			errInt := value.Interface()
 			if errInt != nil {
-				log.Printf("[Error] Fail to send GetFile to %v: %v",
+				log.Printf("[Error] Quorum read %v-th node (host %v, file %v) error: %v",
+					j,
 					tasks[chosen].Info.Host,
-					errInt.(error),
-				)
-				fmt.Printf("%v-th fail to send GetFile to %v: %v\n",
-					i,
-					tasks[chosen].Info.Host,
+					filename,
 					errInt.(error),
 				)
 			} else {
 				r := tasks[chosen].Reply.(*ReplyGetFile)
-				if r.Flag {
-					fmt.Printf("%v-th chosen %v, host %v finish reading\n", i, chosen, tasks[chosen].Info.Host)
+				if !r.Flag {
+					log.Printf("[Error] Quorum read %v-th node (host %v, file %v) error: %v",
+						j,
+						tasks[chosen].Info.Host,
+						filename,
+						r.ErrStr,
+					)
+				} else {
+					log.Printf("[Info] Quorum read %v-th node (host %v, file %v, version %v, delete %v) success",
+						j,
+						tasks[chosen].Info.Host,
+						filename,
+						r.Version,
+						r.DeleteFlag,
+					)
 					if r.Version > maxVersion {
 						maxVersion = r.Version
 						if r.DeleteFlag {
@@ -506,7 +527,24 @@ func (t *RpcS2S) MemberFailure(args *ArgMemberFailure, reply *ReplyMemberFailure
 func (t *RpcS2S) UpdateFileVersion(args *ArgUpdateFileVersion, reply *ReplyUpdateFileVersion) error {
 	reply.Flag = true
 	reply.ErrStr = ""
-	reply.Version = SDFSUpdateFileVersion(args.Filename)
+	reply.NeedForce = false
+
+	version, ok := SDFSUpdateFileVersion(args.Filename, args.ForceFlag)
+	if !ok {
+		reply.Flag = false
+		reply.ErrStr = "required force flag since last update time is too recent"
+		reply.NeedForce = true
+	} else {
+		reply.Version = version
+		log.Printf("[Info] UpdateFileVersion: file %v, new version %v",
+			args.Filename,
+			version,
+		)
+		fmt.Printf("UpdateFileVersion: file %v, new version %v\n",
+			args.Filename,
+			version,
+		)
+	}
 	return nil
 }
 
@@ -514,7 +552,17 @@ func (t *RpcS2S) UpdateFile(args *ArgUpdateFile, reply *ReplyUpdateFile) error {
 	reply.Flag = true
 	reply.ErrStr = ""
 
-	SDFSUpdateFile(args.Filename, args.DeleteFlag, args.Version, args.Length, args.Content)
+	log.Printf("[Info] UpdateFile: file %v, version %v, delete %v",
+		args.Filename,
+		args.Version,
+		args.DeleteFlag,
+	)
+	fmt.Printf("UpdateFile: file %v, version %v, delete %v\n",
+		args.Filename,
+		args.Version,
+		args.DeleteFlag,
+	)
+	SDFSUpdateFile(args.Filename, args.Version, args.DeleteFlag, args.Length, args.Content)
 
 	return nil
 }
@@ -523,8 +571,8 @@ func (t *RpcS2S) GetFile(args *ArgGetFile, reply *ReplyGetFile) error {
 	reply.Flag = true
 	reply.ErrStr = ""
 
-	var err error = nil
-	reply.DeleteFlag, reply.Version, reply.Length, reply.Content, err = SDFSReadFile(args.Filename)
+	var err error
+	reply.Version, reply.DeleteFlag, reply.Length, reply.Content, err = SDFSReadFile(args.Filename)
 	if err != nil {
 		reply.Flag = false
 		reply.ErrStr = err.Error()

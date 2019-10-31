@@ -31,8 +31,9 @@ type ReplyClientMemberLeave struct {
 }
 
 type ReplyClientUpdateFile struct {
-	Flag   bool
-	ErrStr string
+	Flag      bool
+	ErrStr    string
+	NeedForce bool
 }
 
 type ReplyClientGetFile struct {
@@ -63,9 +64,10 @@ type ReplyMemberFailure struct {
 }
 
 type ReplyUpdateFileVersion struct {
-	Flag    bool
-	ErrStr  string
-	Version int
+	Flag      bool
+	ErrStr    string
+	NeedForce bool
+	Version   int
 }
 
 type ReplyUpdateFile struct {

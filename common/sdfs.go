@@ -4,11 +4,17 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
+	"log"
 	"path/filepath"
 	"regexp"
 	"sync"
 	"time"
 )
+
+type SDFSVersionSequence struct {
+	Version   int
+	Timestamp time.Time
+}
 
 type SDFSFileInfo struct {
 	Filename   string
@@ -25,7 +31,7 @@ const (
 )
 
 var (
-	SDFSFileVersionSequenceMap    map[string]int = make(map[string]int)
+	SDFSFileVersionSequenceMap    map[string]*SDFSVersionSequence = make(map[string]*SDFSVersionSequence)
 	SDFSFileVersionSequenceMapMux sync.RWMutex
 
 	SDFSFileInfoMap    map[string]*SDFSFileInfo = make(map[string]*SDFSFileInfo)
@@ -60,20 +66,34 @@ func SDFSGetCurrentVersion(filename string) int {
 	return val.Version
 }
 
-func SDFSUpdateFileVersion(filename string) int {
+func SDFSUpdateFileVersion(filename string, force bool) (int, bool) {
 	SDFSFileVersionSequenceMapMux.Lock()
 	defer SDFSFileVersionSequenceMapMux.Unlock()
 
-	if _, ok := SDFSFileVersionSequenceMap[filename]; !ok {
-		SDFSFileVersionSequenceMap[filename] = SDFSGetCurrentVersion(filename) + 100
+	newestVersion := SDFSGetCurrentVersion(filename)
+	now := time.Now()
+	val, ok := SDFSFileVersionSequenceMap[filename]
+	if !ok {
+		SDFSFileVersionSequenceMap[filename] = &SDFSVersionSequence{
+			newestVersion + 100,
+			now,
+		}
+	} else {
+		if !force && !now.After(val.Timestamp.Add(60*time.Second)) {
+			return -1, false
+		}
+
+		if val.Version < newestVersion {
+			val.Version = newestVersion
+		}
+		val.Version += 1
+		val.Timestamp = now
 	}
 
-	SDFSFileVersionSequenceMap[filename] += 1
-	fmt.Printf("UpdateFileVersion file %v version %v\n", filename, SDFSFileVersionSequenceMap[filename])
-	return SDFSFileVersionSequenceMap[filename]
+	return val.Version, true
 }
 
-func SDFSUpdateFile(filename string, deleteFlag bool, version int, length int, content []byte) {
+func SDFSUpdateFile(filename string, version int, deleteFlag bool, length int, content []byte) {
 	SDFSFileInfoMapMux.Lock()
 	val, ok := SDFSFileInfoMap[filename]
 	if !ok {
@@ -94,13 +114,24 @@ func SDFSUpdateFile(filename string, deleteFlag bool, version int, length int, c
 
 	if val.Version >= version {
 		// current version is up-to-date or newer, no need to update
+		log.Printf("[Verbose] Skip UpdateFile: file %v, version %v (latest version %v), delete %v",
+			filename,
+			version,
+			val.Version,
+			deleteFlag,
+		)
+		fmt.Printf("Skip UpdateFile: file %v, version %v (latest version %v), delete %v\n",
+			filename,
+			version,
+			val.Version,
+			deleteFlag,
+		)
 		return
 	}
 	val.Timestamp = time.Now()
 	val.Version = version
 	val.DeleteFlag = deleteFlag
 
-	fmt.Printf("Update %v, version %v, delete %v\n", filename, version, deleteFlag)
 	if !deleteFlag {
 		WriteFile(SDFSPath(filename), content[0:length])
 	} else {
@@ -109,26 +140,26 @@ func SDFSUpdateFile(filename string, deleteFlag bool, version int, length int, c
 	return
 }
 
-func SDFSReadFile(filename string) (bool, int, int, []byte, error) {
-	SDFSFileInfoMapMux.Lock()
+func SDFSReadFile(filename string) (int, bool, int, []byte, error) {
+	SDFSFileInfoMapMux.RLock()
 	val, ok := SDFSFileInfoMap[filename]
-	SDFSFileInfoMapMux.Unlock()
+	SDFSFileInfoMapMux.RUnlock()
 
 	if !ok {
-		return true, -1, 0, nil, errors.New("file not found")
+		return -1, true, 0, nil, errors.New("file not found")
 	}
 
-	val.Lock.Lock()
-	defer val.Lock.Unlock()
+	val.Lock.RLock()
+	defer val.Lock.RUnlock()
 
 	if val.DeleteFlag {
-		return true, val.Version, 0, nil, nil
+		return val.Version, true, 0, nil, nil
 	}
 
 	content, err := ReadFile(SDFSPath(filename))
 	if err != nil {
-		return true, -1, 0, nil, errors.New("read file error")
+		return -1, true, 0, nil, errors.New("read file error")
 	}
 
-	return false, val.Version, len(content), content, nil
+	return val.Version, false, len(content), content, nil
 }

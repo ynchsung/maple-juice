@@ -24,6 +24,7 @@ type ArgClientUpdateFile struct {
 	DeleteFlag bool
 	Length     int
 	Content    []byte
+	ForceFlag  bool
 }
 
 type ArgClientGetFile struct {
@@ -42,7 +43,8 @@ type ArgMemberFailure struct {
 }
 
 type ArgUpdateFileVersion struct {
-	Filename string
+	Filename  string
+	ForceFlag bool
 }
 
 type ArgUpdateFile struct {

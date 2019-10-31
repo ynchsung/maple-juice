@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -207,7 +208,7 @@ func member_leave() {
 	}
 }
 
-func put_file() {
+func put_file(force bool) {
 	var (
 		args  common.ArgClientUpdateFile
 		reply common.ReplyClientUpdateFile
@@ -221,6 +222,7 @@ func put_file() {
 	args.DeleteFlag = false
 	args.Length = len(content)
 	args.Content = content
+	args.ForceFlag = force
 
 	task := common.RpcAsyncCallerTask{
 		"UpdateFile",
@@ -238,12 +240,20 @@ func put_file() {
 	} else {
 		fmt.Printf("PutFile result %v\n", reply.Flag)
 		if !reply.Flag {
-			fmt.Printf("error %v\n", reply.ErrStr)
+			fmt.Printf("Error %v\n", reply.ErrStr)
+			if !force && reply.NeedForce {
+				reader := bufio.NewReader(os.Stdin)
+				fmt.Printf("Want to force put (y/n)? ")
+				text, _ := reader.ReadString('\n')
+				if text == "y\n" {
+					put_file(true)
+				}
+			}
 		}
 	}
 }
 
-func delete_file() {
+func delete_file(force bool) {
 	var (
 		args  common.ArgClientUpdateFile
 		reply common.ReplyClientUpdateFile
@@ -253,6 +263,7 @@ func delete_file() {
 	args.DeleteFlag = true
 	args.Length = 0
 	args.Content = nil
+	args.ForceFlag = force
 
 	task := common.RpcAsyncCallerTask{
 		"UpdateFile",
@@ -271,6 +282,14 @@ func delete_file() {
 		fmt.Printf("DeleteFile result %v\n", reply.Flag)
 		if !reply.Flag {
 			fmt.Printf("Error %v\n", reply.ErrStr)
+			if !force && reply.NeedForce {
+				reader := bufio.NewReader(os.Stdin)
+				fmt.Printf("Want to force delete (y/n)? ")
+				text, _ := reader.ReadString('\n')
+				if text == "y\n" {
+					delete_file(true)
+				}
+			}
 		}
 	}
 }
@@ -322,9 +341,9 @@ func main() {
 	} else if os.Args[1] == "member_leave" {
 		member_leave()
 	} else if os.Args[1] == "put_file" {
-		put_file()
+		put_file(false)
 	} else if os.Args[1] == "delete_file" {
-		delete_file()
+		delete_file(false)
 	} else if os.Args[1] == "get_file" {
 		get_file()
 	}
