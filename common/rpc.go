@@ -213,14 +213,19 @@ func (t *RpcClient) UpdateFile(args *ArgClientUpdateFile, reply *ReplyClientUpda
 	for i < SDFS_REPLICA_QUORUM && j < len(tasks) {
 		chosen, value, _ := reflect.Select(cases)
 		if tasks[chosen] != nil {
-			err := value.Interface().(error)
-			if err != nil {
+			errInt := value.Interface()
+			if errInt != nil {
 				log.Printf("[Error] Fail to send UpdateFile to %v: %v",
 					tasks[chosen].Info.Host,
-					err,
+					errInt.(error),
+				)
+				fmt.Printf("%v-th fail to send UpdateFile to %v: %v\n",
+					i,
+					tasks[chosen].Info.Host,
+					errInt.(error),
 				)
 			} else {
-				fmt.Printf("%v-th Chosen %v, host %v finish updating\n", i, chosen, tasks[chosen].Info.Host)
+				fmt.Printf("%v-th chosen %v, host %v finish updating\n", i, chosen, tasks[chosen].Info.Host)
 				i += 1
 			}
 			tasks[chosen] = nil
@@ -282,11 +287,16 @@ func (t *RpcClient) GetFile(args *ArgClientGetFile, reply *ReplyClientGetFile) e
 	for i < SDFS_REPLICA_QUORUM && j < len(tasks) {
 		chosen, value, _ := reflect.Select(cases)
 		if tasks[chosen] != nil {
-			err := value.Interface().(error)
-			if err != nil {
+			errInt := value.Interface()
+			if errInt != nil {
 				log.Printf("[Error] Fail to send GetFile to %v: %v",
 					tasks[chosen].Info.Host,
-					err,
+					errInt.(error),
+				)
+				fmt.Printf("%v-th fail to send GetFile to %v: %v\n",
+					i,
+					tasks[chosen].Info.Host,
+					errInt.(error),
 				)
 			} else {
 				r := tasks[chosen].Reply.(*ReplyGetFile)
@@ -313,7 +323,6 @@ func (t *RpcClient) GetFile(args *ArgClientGetFile, reply *ReplyClientGetFile) e
 			j += 1
 		}
 	}
-
 	if i < SDFS_REPLICA_QUORUM {
 		reply.Flag = false
 		reply.ErrStr = "fail to read file from enough replicas (quorum)"
