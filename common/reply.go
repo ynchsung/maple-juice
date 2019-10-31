@@ -74,8 +74,10 @@ type ReplyUpdateFile struct {
 }
 
 type ReplyGetFile struct {
-	Flag    bool
-	ErrStr  string
-	Length  int
-	Content []byte
+	Flag       bool
+	ErrStr     string
+	DeleteFlag bool
+	Version    int
+	Length     int
+	Content    []byte
 }

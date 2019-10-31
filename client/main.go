@@ -275,6 +275,39 @@ func delete_file() {
 	}
 }
 
+func get_file() {
+	var (
+		args  common.ArgClientGetFile = common.ArgClientGetFile{os.Args[4]}
+		reply common.ReplyClientGetFile
+	)
+
+	task := common.RpcAsyncCallerTask{
+		"UpdateFile",
+		common.HostInfo{os.Args[2], os.Args[3], "", 0},
+		&args,
+		&reply,
+		make(chan error),
+	}
+
+	go common.CallRpcClientGeneral(&task)
+
+	err := <-task.Chan
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+	} else {
+		fmt.Printf("GetFile result %v\n", reply.Flag)
+		if !reply.Flag {
+			fmt.Printf("error %v\n", reply.ErrStr)
+		} else {
+			fmt.Printf("file len %v\n", reply.Length)
+			_, err2 := common.WriteFile(os.Args[5], reply.Content[0:reply.Length])
+			if err2 != nil {
+				panic(err2)
+			}
+		}
+	}
+}
+
 func main() {
 	if os.Args[1] == "log" {
 		grep_log()
@@ -292,5 +325,7 @@ func main() {
 		put_file()
 	} else if os.Args[1] == "delete_file" {
 		delete_file()
+	} else if os.Args[1] == "get_file" {
+		get_file()
 	}
 }

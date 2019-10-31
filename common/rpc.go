@@ -232,6 +232,82 @@ func (t *RpcClient) UpdateFile(args *ArgClientUpdateFile, reply *ReplyClientUpda
 }
 
 func (t *RpcClient) GetFile(args *ArgClientGetFile, reply *ReplyClientGetFile) error {
+	reply.Flag = true
+	reply.ErrStr = ""
+
+	k := SDFSHash(args.Filename)
+	_, replicaMap := GetReplicasByKey(k)
+	if len(replicaMap) == 0 {
+		reply.Flag = false
+		reply.ErrStr = "no members in the cluster"
+		return nil
+	}
+
+	// read from all replicas
+	var tasks []*RpcAsyncCallerTask
+	cases := make([]reflect.SelectCase, len(replicaMap))
+	i := 0
+	for _, mem := range replicaMap {
+		task := &RpcAsyncCallerTask{
+			"GetFile",
+			mem.Info,
+			&ArgGetFile{args.Filename},
+			&ReplyGetFile{},
+			make(chan error),
+		}
+
+		go CallRpcS2SGeneral(task)
+
+		cases[i] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(task.Chan)}
+		tasks = append(tasks, task)
+		i += 1
+	}
+
+	// wait for quorum finish reading and choose the latest version
+	maxVersion := -1
+	for i, j := 0, 0; i < SDFS_REPLICA_QUORUM && j < len(tasks); {
+		chosen, _, _ := reflect.Select(cases)
+		// TODO: error handling
+		if tasks[chosen] != nil {
+			r := tasks[chosen].Reply.(ReplyGetFile)
+			if r.Flag {
+				fmt.Printf("%v-th Chosen %v host %v\n", i, chosen, tasks[chosen].Info.Host)
+				if r.Version > maxVersion {
+					maxVersion = r.Version
+					if r.DeleteFlag {
+						reply.Flag = false
+						reply.ErrStr = "file not found"
+						reply.Length = 0
+						reply.Content = nil
+					} else {
+						reply.Flag = true
+						reply.ErrStr = ""
+						reply.Length = r.Length
+						reply.Content = r.Content
+					}
+				}
+				i += 1
+			}
+			tasks[chosen] = nil
+			j += 1
+		}
+	}
+
+	if maxVersion < 0 {
+		reply.Flag = false
+		reply.ErrStr = "file not found"
+		reply.Length = 0
+		reply.Content = nil
+	}
+
+	// put not finishing task into queue to wait
+	for _, task := range tasks {
+		if task != nil {
+			RpcAsyncCallerTaskWaitQueueMux.Lock()
+			RpcAsyncCallerTaskWaitQueue = append(RpcAsyncCallerTaskWaitQueue, task)
+			RpcAsyncCallerTaskWaitQueueMux.Unlock()
+		}
+	}
 	return nil
 }
 
@@ -411,5 +487,15 @@ func (t *RpcS2S) UpdateFile(args *ArgUpdateFile, reply *ReplyUpdateFile) error {
 }
 
 func (t *RpcS2S) GetFile(args *ArgGetFile, reply *ReplyGetFile) error {
+	reply.Flag = true
+	reply.ErrStr = ""
+
+	var err error = nil
+	reply.DeleteFlag, reply.Version, reply.Length, reply.Content, err = SDFSReadFile(args.Filename)
+	if err != nil {
+		reply.Flag = false
+		reply.ErrStr = err.Error()
+	}
+
 	return nil
 }

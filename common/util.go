@@ -2,6 +2,7 @@ package common
 
 import (
 	"bufio"
+	"io/ioutil"
 	"os"
 	"regexp"
 )
@@ -63,4 +64,8 @@ func WriteFile(path string, content []byte) (int, error) {
 
 func DeleteFile(path string) error {
 	return os.Remove(path)
+}
+
+func ReadFile(path string) ([]byte, error) {
+	return ioutil.ReadFile(path)
 }

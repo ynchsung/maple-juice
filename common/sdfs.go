@@ -1,6 +1,7 @@
 package common
 
 import (
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"path/filepath"
@@ -106,4 +107,28 @@ func SDFSUpdateFile(filename string, deleteFlag bool, version int, length int, c
 		DeleteFile(SDFSPath(filename))
 	}
 	return
+}
+
+func SDFSReadFile(filename string) (bool, int, int, []byte, error) {
+	SDFSFileInfoMapMux.Lock()
+	val, ok := SDFSFileInfoMap[filename]
+	SDFSFileInfoMapMux.Unlock()
+
+	if !ok {
+		return true, -1, 0, nil, errors.New("file not found")
+	}
+
+	val.Lock.Lock()
+	defer val.Lock.Unlock()
+
+	if val.DeleteFlag {
+		return true, val.Version, 0, nil, nil
+	}
+
+	content, err := ReadFile(SDFSPath(filename))
+	if err != nil {
+		return true, -1, 0, nil, errors.New("read file error")
+	}
+
+	return false, val.Version, len(content), content, nil
 }
