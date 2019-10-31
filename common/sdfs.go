@@ -74,10 +74,11 @@ func SDFSUpdateFileVersion(filename string, force bool) (int, bool) {
 	now := time.Now()
 	val, ok := SDFSFileVersionSequenceMap[filename]
 	if !ok {
-		SDFSFileVersionSequenceMap[filename] = &SDFSVersionSequence{
+		val = &SDFSVersionSequence{
 			newestVersion + 100,
 			now,
 		}
+		SDFSFileVersionSequenceMap[filename] = val
 	} else {
 		if !force && !now.After(val.Timestamp.Add(60*time.Second)) {
 			return -1, false
