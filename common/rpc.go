@@ -172,7 +172,7 @@ func (t *RpcClient) UpdateFile(args *ArgClientUpdateFile, reply *ReplyClientUpda
 		"UpdateFileVersion",
 		mainReplica.Info,
 		&ArgUpdateFileVersion{filename, args.ForceFlag},
-		&ReplyUpdateFileVersion{true, "", false, -1},
+		new(ReplyUpdateFileVersion),
 		make(chan error),
 	}
 	go CallRpcS2SGeneral(task)
@@ -201,7 +201,7 @@ func (t *RpcClient) UpdateFile(args *ArgClientUpdateFile, reply *ReplyClientUpda
 			"UpdateFile",
 			mem.Info,
 			&ArgUpdateFile{filename, deleteFlag, version, args.Length, args.Content},
-			&ReplyUpdateFile{true, ""},
+			new(ReplyUpdateFile),
 			make(chan error),
 		}
 
@@ -281,7 +281,7 @@ func (t *RpcClient) GetFile(args *ArgClientGetFile, reply *ReplyClientGetFile) e
 			"GetFile",
 			mem.Info,
 			&ArgGetFile{filename},
-			&ReplyGetFile{},
+			new(ReplyGetFile),
 			make(chan error),
 		}
 
@@ -528,6 +528,7 @@ func (t *RpcS2S) UpdateFileVersion(args *ArgUpdateFileVersion, reply *ReplyUpdat
 	reply.Flag = true
 	reply.ErrStr = ""
 	reply.NeedForce = false
+	reply.Version = -1
 
 	version, ok := SDFSUpdateFileVersion(args.Filename, args.ForceFlag)
 	if !ok {
