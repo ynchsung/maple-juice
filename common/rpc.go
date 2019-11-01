@@ -500,7 +500,7 @@ func (t *RpcS2S) MemberFailure(args *ArgMemberFailure, reply *ReplyMemberFailure
 	}
 
 	if args.FailureInfo.Host != Cfg.Self.Host {
-		DeleteMember(args.FailureInfo)
+		inWindowFlag, oldList, _ := DeleteMember(args.FailureInfo)
 		log.Printf("[Info] MemberFailure (detected by host %v): host %v, port %v, udp_port %v, id %v",
 			args.MonitorInfo.Host,
 			args.FailureInfo.Host,
@@ -508,6 +508,9 @@ func (t *RpcS2S) MemberFailure(args *ArgMemberFailure, reply *ReplyMemberFailure
 			args.FailureInfo.UdpPort,
 			args.FailureInfo.MachineID,
 		)
+		if inWindowFlag {
+			SDFSFailureHandle(oldList, args.FailureInfo)
+		}
 	} else {
 		// if failure machine is myself
 		// then it means false detection

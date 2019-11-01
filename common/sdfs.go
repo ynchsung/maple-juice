@@ -25,6 +25,12 @@ type SDFSFileInfo struct {
 	Lock       sync.RWMutex
 }
 
+type SDFSTransferReplicaTask struct {
+	Target   HostInfo
+	FileInfo *SDFSFileInfo
+	Chan     chan error
+}
+
 const (
 	SDFS_REPLICA_NUM    = 4
 	SDFS_REPLICA_QUORUM = 3
@@ -163,4 +169,101 @@ func SDFSReadFile(filename string) (int, bool, int, []byte, error) {
 	}
 
 	return val.Version, false, len(content), content, nil
+}
+
+func SDFSFailureHandle(memberList []MemberInfo, failureHost HostInfo) error {
+	var tasks []*SDFSTransferReplicaTask
+	N := len(memberList)
+
+	SDFSFileInfoMapMux.RLock()
+	for _, val := range SDFSFileInfoMap {
+		val.Lock.RLock()
+		k := val.Key
+		val.Lock.RUnlock()
+
+		flag := false
+		for i, mem := range memberList {
+			if mem.Info.MachineID >= k {
+				for j := 0; j < SDFS_REPLICA_NUM; j++ {
+					if failureHost.MachineID == memberList[(i+j)%N].Info.MachineID {
+						task := &SDFSTransferReplicaTask{
+							memberList[(i+SDFS_REPLICA_NUM)%N].Info,
+							val,
+							make(chan error),
+						}
+						tasks = append(tasks, task)
+						break
+					}
+				}
+				flag = true
+				break
+			}
+		}
+
+		if !flag {
+			// main replica == 0
+			for j := 0; j < SDFS_REPLICA_NUM; j++ {
+				if failureHost.MachineID == memberList[j%N].Info.MachineID {
+					task := &SDFSTransferReplicaTask{
+						memberList[SDFS_REPLICA_NUM%N].Info,
+						val,
+						make(chan error),
+					}
+					tasks = append(tasks, task)
+					break
+				}
+			}
+		}
+	}
+	SDFSFileInfoMapMux.RUnlock()
+
+	for _, task := range tasks {
+		go func() {
+			task.FileInfo.Lock.RLock()
+			var (
+				content []byte = nil
+				length  int    = 0
+			)
+			if !task.FileInfo.DeleteFlag {
+				content, err := ReadFile(SDFSPath(task.FileInfo.Filename))
+				if err != nil {
+					task.Chan <- err
+					return
+				}
+				length = len(content)
+			}
+
+			rpcTask := &RpcAsyncCallerTask{
+				"UpdateFile",
+				task.Target,
+				&ArgUpdateFile{task.FileInfo.Filename, task.FileInfo.DeleteFlag, task.FileInfo.Version, length, content},
+				new(ReplyUpdateFile),
+				make(chan error),
+			}
+			task.FileInfo.Lock.RUnlock()
+
+			go CallRpcS2SGeneral(rpcTask)
+
+			err := <-rpcTask.Chan
+			task.Chan <- err
+		}()
+	}
+
+	// Wait for all SDFSTransferReplicaTask
+	for _, task := range tasks {
+		err := <-task.Chan
+		if err != nil {
+			log.Printf("[Warn] Fail to send replica to %v: %v",
+				task.Target.Host,
+				err,
+			)
+		} else {
+			log.Printf("[Info] Send replica to %v, file %v success",
+				task.Target.Host,
+				task.FileInfo.Filename,
+			)
+		}
+	}
+
+	return nil
 }

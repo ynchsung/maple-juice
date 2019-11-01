@@ -153,7 +153,7 @@ func AddMember(info HostInfo) error {
 	return nil
 }
 
-func DeleteMember(info HostInfo) error {
+func DeleteMember(info HostInfo) (bool, []MemberInfo, error) {
 	MemberListMux.Lock()
 	defer func() {
 		fmt.Printf("\n[DeleteMember] MemberList change\n==\n")
@@ -164,8 +164,21 @@ func DeleteMember(info HostInfo) error {
 		MemberListMux.Unlock()
 	}()
 
+	N := len(MemberList)
+	windowFlag := false
+	oldList := make([]MemberInfo, N)
+	copy(oldList, MemberList)
+
 	for i, mem := range MemberList {
 		if mem.Info.MachineID == info.MachineID {
+			for j := 1; j < SDFS_REPLICA_NUM; j++ {
+				if MemberList[(i+j)%N].Info.MachineID == Cfg.Self.MachineID {
+					windowFlag = true
+				}
+				if MemberList[(i-j+N)%N].Info.MachineID == Cfg.Self.MachineID {
+					windowFlag = true
+				}
+			}
 			for j := i; j < len(MemberList)-1; j++ {
 				MemberList[j] = MemberList[j+1]
 			}
@@ -174,7 +187,7 @@ func DeleteMember(info HostInfo) error {
 		}
 	}
 
-	return nil
+	return windowFlag, oldList, nil
 }
 
 func UpdateHeartbeat(info HostInfo, incar int, now time.Time) bool {
@@ -217,7 +230,7 @@ func GetReplicasByKey(key int) (MemberInfo, map[string]MemberInfo) {
 	}
 
 	for i := 0; i < SDFS_REPLICA_NUM; i++ {
-		replicaMap[MemberList[i].Info.Host] = MemberList[i]
+		replicaMap[MemberList[i%N].Info.Host] = MemberList[i%N]
 	}
 	return MemberList[0], replicaMap
 }
