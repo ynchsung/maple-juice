@@ -208,16 +208,16 @@ func GetReplicasByKey(key int) (MemberInfo, map[string]MemberInfo) {
 	}
 
 	for i, mem := range MemberList {
-		if mem.Info.MachineID > key {
+		if mem.Info.MachineID >= key {
 			for j := 0; j < SDFS_REPLICA_NUM; j++ {
-				replicaMap[MemberList[(i+j-1+N)%N].Info.Host] = MemberList[(i+j-1+N)%N]
+				replicaMap[MemberList[(i+j)%N].Info.Host] = MemberList[(i+j)%N]
 			}
-			return MemberList[(i-1+N)%N], replicaMap
+			return MemberList[i], replicaMap
 		}
 	}
 
 	for i := 0; i < SDFS_REPLICA_NUM; i++ {
-		replicaMap[MemberList[(N-1+i)%N].Info.Host] = MemberList[(N-1+i)%N]
+		replicaMap[MemberList[i].Info.Host] = MemberList[i]
 	}
-	return MemberList[N-1], replicaMap
+	return MemberList[0], replicaMap
 }
