@@ -217,8 +217,8 @@ func SDFSFailureHandle(memberList []MemberInfo, failureHost HostInfo) error {
 	}
 	SDFSFileInfoMapMux.RUnlock()
 
-	for _, task := range tasks {
-		go func() {
+	for _, t := range tasks {
+		go func(task *SDFSTransferReplicaTask) {
 			var (
 				content []byte = nil
 				length  int    = 0
@@ -248,7 +248,7 @@ func SDFSFailureHandle(memberList []MemberInfo, failureHost HostInfo) error {
 
 			err = <-rpcTask.Chan
 			task.Chan <- err
-		}()
+		}(t)
 	}
 
 	// Wait for all SDFSTransferReplicaTask
