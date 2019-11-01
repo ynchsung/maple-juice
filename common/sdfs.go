@@ -219,13 +219,15 @@ func SDFSFailureHandle(memberList []MemberInfo, failureHost HostInfo) error {
 
 	for _, task := range tasks {
 		go func() {
-			task.FileInfo.Lock.RLock()
 			var (
 				content []byte = nil
 				length  int    = 0
+				err     error  = nil
 			)
+
+			task.FileInfo.Lock.RLock()
 			if !task.FileInfo.DeleteFlag {
-				content, err := ReadFile(SDFSPath(task.FileInfo.Filename))
+				content, err = ReadFile(SDFSPath(task.FileInfo.Filename))
 				if err != nil {
 					task.Chan <- err
 					return
@@ -244,7 +246,7 @@ func SDFSFailureHandle(memberList []MemberInfo, failureHost HostInfo) error {
 
 			go CallRpcS2SGeneral(rpcTask)
 
-			err := <-rpcTask.Chan
+			err = <-rpcTask.Chan
 			task.Chan <- err
 		}()
 	}
