@@ -163,7 +163,7 @@ func AddMember(info HostInfo) (bool, []MemberInfo, error) {
 				}
 			}
 			for j := 1; j < SDFS_REPLICA_NUM; j++ {
-				if MemberList[(i-j+N)%N].Info.MachineID == Cfg.Self.MachineID {
+				if MemberList[(i-j+SDFS_REPLICA_NUM*N)%N].Info.MachineID == Cfg.Self.MachineID {
 					windowFlag = true
 				}
 			}
@@ -195,7 +195,7 @@ func DeleteMember(info HostInfo) (bool, []MemberInfo, error) {
 				if MemberList[(i+j)%N].Info.MachineID == Cfg.Self.MachineID {
 					windowFlag = true
 				}
-				if MemberList[(i-j+N)%N].Info.MachineID == Cfg.Self.MachineID {
+				if MemberList[(i-j+SDFS_REPLICA_NUM*N)%N].Info.MachineID == Cfg.Self.MachineID {
 					windowFlag = true
 				}
 			}
