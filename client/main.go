@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"strconv"
+	"time"
 
 	"ycsw/common"
 )
@@ -243,11 +244,25 @@ func put_file(force bool) {
 		if !reply.Flag {
 			fmt.Printf("Error %v\n", reply.ErrStr)
 			if !force && reply.NeedForce {
-				reader := bufio.NewReader(os.Stdin)
-				fmt.Printf("Want to force put (y/n)? ")
-				text, _ := reader.ReadString('\n')
-				if text == "y\n" {
-					put_file(true)
+				c := make(chan bool)
+				go func() {
+					reader := bufio.NewReader(os.Stdin)
+					fmt.Printf("Want to force put (y/n)? ")
+					text, _ := reader.ReadString('\n')
+					if text == "y\n" {
+						c <- true
+					} else {
+						c <- false
+					}
+				}()
+
+				select {
+				case x := <-c:
+					if x {
+						put_file(true)
+					}
+				case <-time.After(30 * time.Second):
+					fmt.Printf("Timeout after 30 seconds, abort put\n")
 				}
 			}
 		}
@@ -284,11 +299,25 @@ func delete_file(force bool) {
 		if !reply.Flag {
 			fmt.Printf("Error %v\n", reply.ErrStr)
 			if !force && reply.NeedForce {
-				reader := bufio.NewReader(os.Stdin)
-				fmt.Printf("Want to force delete (y/n)? ")
-				text, _ := reader.ReadString('\n')
-				if text == "y\n" {
-					delete_file(true)
+				c := make(chan bool)
+				go func() {
+					reader := bufio.NewReader(os.Stdin)
+					fmt.Printf("Want to force delete (y/n)? ")
+					text, _ := reader.ReadString('\n')
+					if text == "y\n" {
+						c <- true
+					} else {
+						c <- false
+					}
+				}()
+
+				select {
+				case x := <-c:
+					if x {
+						delete_file(true)
+					}
+				case <-time.After(30 * time.Second):
+					fmt.Printf("Timeout after 30 seconds, abort delete\n")
 				}
 			}
 		}
@@ -392,6 +421,9 @@ func store() {
 			fmt.Printf("%v has no file\n", id)
 		} else {
 			for _, file := range reply.Files {
+				if file.DeleteFlag {
+					fmt.Printf("[DELETED] ")
+				}
 				fmt.Printf("Filename %v, key %v, version %v, delete %v\n",
 					file.Filename,
 					file.Key,

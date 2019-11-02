@@ -53,7 +53,7 @@ func GrepFile(path string, str string, isRegex bool) (*GrepInfo, error) {
 }
 
 func WriteFile(path string, content []byte) (int, error) {
-	fp, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE, 0644)
+	fp, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		return 0, err
 	}
