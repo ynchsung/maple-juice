@@ -365,6 +365,86 @@ func (t *RpcClient) GetFile(args *ArgClientGetFile, reply *ReplyClientGetFile) e
 	return nil
 }
 
+func (t *RpcClient) ListHostsByFile(args *ArgClientListHostsByFile, reply *ReplyClientListHostsByFile) error {
+	members := GetMemberList()
+
+	// Send RpcS2S ExistFile to all members
+	var tasks []*RpcAsyncCallerTask
+	args2 := ArgExistFile{args.Filename}
+	for _, mem := range members {
+		task := &RpcAsyncCallerTask{
+			"ExistFile",
+			mem.Info,
+			&args2,
+			new(ReplyExistFile),
+			make(chan error),
+		}
+
+		go CallRpcS2SGeneral(task)
+
+		tasks = append(tasks, task)
+	}
+
+	reply.Flag = true
+	reply.ErrStr = ""
+	reply.Hosts = make([]HostInfo, 0)
+
+	// Wait for all RpcAsyncCallerTask
+	for _, task := range tasks {
+		err := <-task.Chan
+		if err != nil {
+			log.Printf("[Error] Fail to send ExistFile to %v: %v",
+				task.Info.Host,
+				err,
+			)
+		} else {
+			exist := task.Reply.(bool)
+			if exist {
+				reply.Hosts = append(reply.Hosts, task.Info)
+			}
+		}
+	}
+
+	return nil
+}
+
+func (t *RpcClient) ListFilesByHost(args *ArgClientListFilesByHost, reply *ReplyClientListFilesByHost) error {
+	members := GetMemberList()
+	for _, mem := range members {
+		if mem.Info.MachineID == args.MachineID {
+			reply.Flag = true
+			reply.ErrStr = ""
+
+			args2 := ArgListFile(1)
+
+			task := &RpcAsyncCallerTask{
+				"ListFile",
+				mem.Info,
+				&args2,
+				new(ReplyListFile),
+				make(chan error),
+			}
+
+			go CallRpcS2SGeneral(task)
+
+			err := <-task.Chan
+			if err == nil {
+				reply.Files = task.Reply.([]SDFSFileInfo2)
+			} else {
+				reply.Flag = false
+				reply.ErrStr = err.Error()
+			}
+
+			return nil
+		}
+	}
+
+	reply.Flag = false
+	reply.ErrStr = "machine not in member list"
+
+	return nil
+}
+
 //////////////////////////////////////////////
 // RPC S2S
 //////////////////////////////////////////////
@@ -587,6 +667,18 @@ func (t *RpcS2S) GetFile(args *ArgGetFile, reply *ReplyGetFile) error {
 		reply.Flag = false
 		reply.ErrStr = err.Error()
 	}
+
+	return nil
+}
+
+func (t *RpcS2S) ExistFile(args *ArgExistFile, reply *ReplyExistFile) error {
+	*reply = ReplyExistFile(SDFSExistFile(args.Filename))
+
+	return nil
+}
+
+func (t *RpcS2S) ListFile(args *ArgListFile, reply *ReplyListFile) error {
+	*reply = ReplyListFile(SDFSListFile())
 
 	return nil
 }

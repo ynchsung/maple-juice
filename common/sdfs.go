@@ -25,6 +25,13 @@ type SDFSFileInfo struct {
 	Lock       sync.RWMutex
 }
 
+type SDFSFileInfo2 struct {
+	Filename   string
+	Key        int
+	Version    int
+	DeleteFlag bool
+}
+
 type SDFSReplicaTransferTask struct {
 	Target   HostInfo
 	FileInfo *SDFSFileInfo
@@ -169,6 +176,35 @@ func SDFSReadFile(filename string) (int, bool, int, []byte, error) {
 	}
 
 	return val.Version, false, len(content), content, nil
+}
+
+func SDFSExistFile(filename string) bool {
+	SDFSFileInfoMapMux.RLock()
+	val, ok := SDFSFileInfoMap[filename]
+	SDFSFileInfoMapMux.RUnlock()
+
+	if !ok {
+		return false
+	}
+
+	val.Lock.RLock()
+	defer val.Lock.RUnlock()
+
+	return !val.DeleteFlag
+}
+
+func SDFSListFile() []SDFSFileInfo2 {
+	SDFSFileInfoMapMux.RLock()
+	defer SDFSFileInfoMapMux.RUnlock()
+
+	ret := make([]SDFSFileInfo2, 0)
+	for _, file := range SDFSFileInfoMap {
+		file.Lock.RLock()
+		ret = append(ret, SDFSFileInfo2{file.Filename, file.Key, file.Version, file.DeleteFlag})
+		file.Lock.RUnlock()
+	}
+
+	return ret
 }
 
 func SDFSDoReplicaTransferTasks(tasks []*SDFSReplicaTransferTask) {

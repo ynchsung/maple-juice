@@ -43,6 +43,18 @@ type ReplyClientGetFile struct {
 	Content []byte
 }
 
+type ReplyClientListHostsByFile struct {
+	Flag   bool
+	ErrStr string
+	Hosts  []HostInfo
+}
+
+type ReplyClientListFilesByHost struct {
+	Flag   bool
+	ErrStr string
+	Files  []SDFSFileInfo2
+}
+
 type ReplyMemberJoin struct {
 	Flag   bool
 	ErrStr string
@@ -83,3 +95,7 @@ type ReplyGetFile struct {
 	Length     int
 	Content    []byte
 }
+
+type ReplyExistFile bool
+
+type ReplyListFile []SDFSFileInfo2

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"strconv"
 
 	"ycsw/common"
 )
@@ -327,6 +328,81 @@ func get_file() {
 	}
 }
 
+func ls() {
+	var (
+		args  common.ArgClientListHostsByFile = common.ArgClientListHostsByFile{os.Args[4]}
+		reply common.ReplyClientListHostsByFile
+	)
+
+	task := common.RpcAsyncCallerTask{
+		"ClientListHostsByFile",
+		common.HostInfo{os.Args[2], os.Args[3], "", 0},
+		&args,
+		&reply,
+		make(chan error),
+	}
+
+	go common.CallRpcClientGeneral(&task)
+
+	err := <-task.Chan
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+	} else {
+		if reply.Hosts == nil || len(reply.Hosts) == 0 {
+			fmt.Printf("File %v not exists\n", os.Args[4])
+		} else {
+			for _, host := range reply.Hosts {
+				fmt.Printf("Host %v, id %v\n",
+					host.Host,
+					host.MachineID,
+				)
+			}
+		}
+	}
+}
+
+func store() {
+	id, err := strconv.Atoi(os.Args[4])
+	if err != nil {
+		panic(err)
+	}
+
+	var (
+		args  common.ArgClientListFilesByHost = common.ArgClientListFilesByHost{id}
+		reply common.ReplyClientListFilesByHost
+	)
+
+	task := common.RpcAsyncCallerTask{
+		"ClientListFilesByHost",
+		common.HostInfo{os.Args[2], os.Args[3], "", 0},
+		&args,
+		&reply,
+		make(chan error),
+	}
+
+	go common.CallRpcClientGeneral(&task)
+
+	err = <-task.Chan
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+	} else if !reply.Flag {
+		fmt.Printf("Error: %v\n", reply.ErrStr)
+	} else {
+		if reply.Files == nil || len(reply.Files) == 0 {
+			fmt.Printf("%v has no file\n", id)
+		} else {
+			for _, file := range reply.Files {
+				fmt.Printf("Filename %v, key %v, version %v, delete %v\n",
+					file.Filename,
+					file.Key,
+					file.Version,
+					file.DeleteFlag,
+				)
+			}
+		}
+	}
+}
+
 func main() {
 	if os.Args[1] == "log" {
 		grep_log()
@@ -346,5 +422,9 @@ func main() {
 		delete_file(false)
 	} else if os.Args[1] == "get_file" {
 		get_file()
+	} else if os.Args[1] == "ls" {
+		ls()
+	} else if os.Args[1] == "store" {
+		store()
 	}
 }

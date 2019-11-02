@@ -31,6 +31,14 @@ type ArgClientGetFile struct {
 	Filename string
 }
 
+type ArgClientListHostsByFile struct {
+	Filename string
+}
+
+type ArgClientListFilesByHost struct {
+	MachineID int
+}
+
 type ArgMemberJoin HostInfo
 
 type ArgMemberAdd HostInfo
@@ -58,3 +66,9 @@ type ArgUpdateFile struct {
 type ArgGetFile struct {
 	Filename string
 }
+
+type ArgExistFile struct {
+	Filename string
+}
+
+type ArgListFile int
