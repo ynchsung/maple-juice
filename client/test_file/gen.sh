@@ -1,0 +1,10 @@
+dd if=/dev/urandom of=test1 bs=1048576 count=2
+dd if=/dev/urandom of=test2 bs=2012320 count=2
+dd if=/dev/urandom of=test3 bs=1928472 count=2
+dd if=/dev/urandom of=test4 bs=3812878 count=2
+dd if=/dev/urandom of=test5 bs=2912834 count=2
+dd if=/dev/urandom of=test6 bs=6723012 count=2
+dd if=/dev/urandom of=test7 bs=1023442 count=2
+dd if=/dev/urandom of=test8 bs=2312488 count=2
+dd if=/dev/urandom of=test9 bs=1589272 count=2
+dd if=/dev/urandom of=test10 bs=4932842 count=2

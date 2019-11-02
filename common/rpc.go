@@ -625,6 +625,14 @@ func (t *RpcS2S) UpdateFileVersion(args *ArgUpdateFileVersion, reply *ReplyUpdat
 		reply.Flag = false
 		reply.ErrStr = "required force flag since last update time is too recent"
 		reply.NeedForce = true
+		log.Printf("[Warn] UpdateFileVersion: file %v abort, %v",
+			args.Filename,
+			reply.ErrStr,
+		)
+		log.Printf("UpdateFileVersion: file %v abort, %v\n",
+			args.Filename,
+			reply.ErrStr,
+		)
 	} else {
 		reply.Version = version
 		log.Printf("[Info] UpdateFileVersion: file %v, new version %v",
@@ -643,17 +651,20 @@ func (t *RpcS2S) UpdateFile(args *ArgUpdateFile, reply *ReplyUpdateFile) error {
 	reply.Flag = true
 	reply.ErrStr = ""
 
-	log.Printf("[Info] UpdateFile: file %v, version %v, delete %v",
+	updated := SDFSUpdateFile(args.Filename, args.Version, args.DeleteFlag, args.Length, args.Content)
+
+	log.Printf("[Info] UpdateFile (SKIP %v): file %v, version %v, delete %v",
+		!updated,
 		args.Filename,
 		args.Version,
 		args.DeleteFlag,
 	)
-	fmt.Printf("UpdateFile: file %v, version %v, delete %v\n",
+	fmt.Printf("UpdateFile (SKIP %v): file %v, version %v, delete %v\n",
+		!updated,
 		args.Filename,
 		args.Version,
 		args.DeleteFlag,
 	)
-	SDFSUpdateFile(args.Filename, args.Version, args.DeleteFlag, args.Length, args.Content)
 
 	return nil
 }
@@ -664,9 +675,29 @@ func (t *RpcS2S) GetFile(args *ArgGetFile, reply *ReplyGetFile) error {
 
 	var err error
 	reply.Version, reply.DeleteFlag, reply.Length, reply.Content, err = SDFSReadFile(args.Filename)
-	if err != nil {
+	if err == nil {
+		log.Printf("[Info] GetFile: read file %v success (version %v, delete %v)",
+			args.Filename,
+			reply.Version,
+			reply.DeleteFlag,
+		)
+		fmt.Printf("GetFile: read file %v success (version %v, delete %v)\n",
+			args.Filename,
+			reply.Version,
+			reply.DeleteFlag,
+		)
+	} else {
 		reply.Flag = false
 		reply.ErrStr = err.Error()
+
+		log.Printf("[Error] GetFile: read file %v error (%v)",
+			args.Filename,
+			err,
+		)
+		fmt.Printf("GetFile: read file %v error (%v)\n",
+			args.Filename,
+			err,
+		)
 	}
 
 	return nil

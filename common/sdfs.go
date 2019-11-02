@@ -2,7 +2,6 @@ package common
 
 import (
 	"errors"
-	"fmt"
 	"hash/fnv"
 	"log"
 	"math/rand"
@@ -133,7 +132,7 @@ func SDFSUpdateFileVersion(filename string, force bool) (int, bool) {
 	return val.Version, true
 }
 
-func SDFSUpdateFile(filename string, version int, deleteFlag bool, length int, content []byte) {
+func SDFSUpdateFile(filename string, version int, deleteFlag bool, length int, content []byte) bool {
 	SDFSFileInfoMapMux.Lock()
 	val, ok := SDFSFileInfoMap[filename]
 	if !ok {
@@ -155,19 +154,7 @@ func SDFSUpdateFile(filename string, version int, deleteFlag bool, length int, c
 
 	if val.Version >= version {
 		// current version is up-to-date or newer, no need to update
-		log.Printf("[Verbose] Skip UpdateFile: file %v, version %v (latest version %v), delete %v",
-			filename,
-			version,
-			val.Version,
-			deleteFlag,
-		)
-		fmt.Printf("Skip UpdateFile: file %v, version %v (latest version %v), delete %v\n",
-			filename,
-			version,
-			val.Version,
-			deleteFlag,
-		)
-		return
+		return false
 	}
 	val.Timestamp = time.Now()
 	val.Version = version
@@ -178,7 +165,7 @@ func SDFSUpdateFile(filename string, version int, deleteFlag bool, length int, c
 	} else {
 		DeleteFile(val.StorePath)
 	}
-	return
+	return true
 }
 
 func SDFSReadFile(filename string) (int, bool, int, []byte, error) {
@@ -289,12 +276,12 @@ func SDFSDoReplicaTransferTasks(tasks []*SDFSReplicaTransferTask) {
 	for _, task := range tasks {
 		err := <-task.Chan
 		if err != nil {
-			log.Printf("[Warn] Fail to send replica to %v: %v",
+			log.Printf("[Warn] ReplicaTransfer: fail to send replica to %v (%v)",
 				task.Target.Host,
 				err,
 			)
 		} else {
-			log.Printf("[Info] Send replica to %v, file %v success",
+			log.Printf("[Info] ReplicaTransfer: send replica to %v, file %v success",
 				task.Target.Host,
 				task.FileInfo.Filename,
 			)
