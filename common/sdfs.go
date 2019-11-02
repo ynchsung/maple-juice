@@ -5,8 +5,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"log"
-	"path/filepath"
-	"regexp"
+	"math/rand"
 	"sync"
 	"time"
 )
@@ -18,6 +17,7 @@ type SDFSVersionSequence struct {
 
 type SDFSFileInfo struct {
 	Filename   string
+	Storename  string
 	Key        int
 	Timestamp  time.Time
 	Version    int
@@ -49,6 +49,11 @@ var (
 
 	SDFSFileInfoMap    map[string]*SDFSFileInfo = make(map[string]*SDFSFileInfo)
 	SDFSFileInfoMapMux sync.RWMutex
+
+	SDFSStoreNameMap    map[string]string = make(map[string]string)
+	SDFSStoreNameMapMux sync.Mutex
+
+	SDFSRandomGenerator *rand.Rand = rand.New(rand.NewSource(time.Now().UnixNano()))
 )
 
 func SDFSHash(filename string) int {
@@ -59,9 +64,29 @@ func SDFSHash(filename string) int {
 	return int(h.Sum32() % M)
 }
 
-func SDFSPath(filename string) string {
-	r := regexp.MustCompile("/")
-	return filepath.Join(Cfg.SDFSDir, r.ReplaceAllString(filename, "_"))
+func SDFSGenerateStoreName(filename string) string {
+	const (
+		l            string = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+		STORE_LENGTH int    = 10
+	)
+
+	SDFSStoreNameMapMux.Lock()
+	defer SDFSStoreNameMapMux.Unlock()
+
+	for {
+		store := make([]byte, STORE_LENGTH)
+		for i := 0; i < STORE_LENGTH; i++ {
+			store[i] = l[SDFSRandomGenerator.Intn(len(l))]
+		}
+
+		storeStr := string(store)
+		if _, ok := SDFSStoreNameMap[storeStr]; !ok {
+			SDFSStoreNameMap[storeStr] = filename
+			return storeStr
+		}
+	}
+
+	return ""
 }
 
 func SDFSGetCurrentVersion(filename string) int {
@@ -113,6 +138,7 @@ func SDFSUpdateFile(filename string, version int, deleteFlag bool, length int, c
 	if !ok {
 		val = &SDFSFileInfo{
 			filename,
+			SDFSGenerateStoreName(filename),
 			SDFSHash(filename),
 			time.Now(),
 			0,
@@ -147,9 +173,9 @@ func SDFSUpdateFile(filename string, version int, deleteFlag bool, length int, c
 	val.DeleteFlag = deleteFlag
 
 	if !deleteFlag {
-		WriteFile(SDFSPath(filename), content[0:length])
+		WriteFile(val.Storename, content[0:length])
 	} else {
-		DeleteFile(SDFSPath(filename))
+		DeleteFile(val.Storename)
 	}
 	return
 }
@@ -170,7 +196,7 @@ func SDFSReadFile(filename string) (int, bool, int, []byte, error) {
 		return val.Version, true, 0, nil, nil
 	}
 
-	content, err := ReadFile(SDFSPath(filename))
+	content, err := ReadFile(val.Storename)
 	if err != nil {
 		return -1, true, 0, nil, errors.New("read file error")
 	}
@@ -209,14 +235,16 @@ func SDFSListFile() []SDFSFileInfo2 {
 
 func SDFSEraseFile() error {
 	SDFSFileInfoMapMux.Lock()
-	defer SDFSFileInfoMapMux.Unlock()
-
 	SDFSFileInfoMap = make(map[string]*SDFSFileInfo)
+	SDFSFileInfoMapMux.Unlock()
 
 	SDFSFileVersionSequenceMapMux.Lock()
-	defer SDFSFileVersionSequenceMapMux.Unlock()
-
 	SDFSFileVersionSequenceMap = make(map[string]*SDFSVersionSequence)
+	SDFSFileVersionSequenceMapMux.Unlock()
+
+	SDFSStoreNameMapMux.Lock()
+	SDFSStoreNameMap = make(map[string]string)
+	SDFSStoreNameMapMux.Unlock()
 
 	return nil
 }
@@ -232,7 +260,7 @@ func SDFSDoReplicaTransferTasks(tasks []*SDFSReplicaTransferTask) {
 
 			task.FileInfo.Lock.RLock()
 			if !task.FileInfo.DeleteFlag {
-				content, err = ReadFile(SDFSPath(task.FileInfo.Filename))
+				content, err = ReadFile(task.FileInfo.Storename)
 				if err != nil {
 					task.Chan <- err
 					return
