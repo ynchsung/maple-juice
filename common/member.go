@@ -128,7 +128,7 @@ func PrepareHeartbeatInfoForMonitor(back int, ahead int) (map[string]MemberInfo,
 	return senderMap, memberListCopy
 }
 
-func AddMember(info HostInfo) error {
+func AddMember(info HostInfo) (bool, []MemberInfo, error) {
 	MemberListMux.Lock()
 	defer func() {
 		fmt.Printf("\n[AddMember] MemberList change\n==\n")
@@ -150,7 +150,27 @@ func AddMember(info HostInfo) error {
 		}
 	}
 
-	return nil
+	N := len(MemberList)
+	windowFlag := false
+	newList := make([]MemberInfo, N)
+	copy(newList, MemberList)
+
+	for i, mem := range MemberList {
+		if mem.Info.MachineID == info.MachineID {
+			for j := 1; j <= SDFS_REPLICA_NUM; j++ {
+				if MemberList[(i+j)%N].Info.MachineID == Cfg.Self.MachineID {
+					windowFlag = true
+				}
+			}
+			for j := 1; j < SDFS_REPLICA_NUM; j++ {
+				if MemberList[(i-j+N)%N].Info.MachineID == Cfg.Self.MachineID {
+					windowFlag = true
+				}
+			}
+		}
+	}
+
+	return windowFlag, newList, nil
 }
 
 func DeleteMember(info HostInfo) (bool, []MemberInfo, error) {

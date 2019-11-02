@@ -25,7 +25,7 @@ type SDFSFileInfo struct {
 	Lock       sync.RWMutex
 }
 
-type SDFSTransferReplicaTask struct {
+type SDFSReplicaTransferTask struct {
 	Target   HostInfo
 	FileInfo *SDFSFileInfo
 	Chan     chan error
@@ -171,54 +171,9 @@ func SDFSReadFile(filename string) (int, bool, int, []byte, error) {
 	return val.Version, false, len(content), content, nil
 }
 
-func SDFSFailureHandle(memberList []MemberInfo, failureHost HostInfo) error {
-	var tasks []*SDFSTransferReplicaTask
-	N := len(memberList)
-
-	SDFSFileInfoMapMux.RLock()
-	for _, val := range SDFSFileInfoMap {
-		val.Lock.RLock()
-		k := val.Key
-		val.Lock.RUnlock()
-
-		flag := false
-		for i, mem := range memberList {
-			if mem.Info.MachineID >= k {
-				for j := 0; j < SDFS_REPLICA_NUM; j++ {
-					if failureHost.MachineID == memberList[(i+j)%N].Info.MachineID {
-						task := &SDFSTransferReplicaTask{
-							memberList[(i+SDFS_REPLICA_NUM)%N].Info,
-							val,
-							make(chan error),
-						}
-						tasks = append(tasks, task)
-						break
-					}
-				}
-				flag = true
-				break
-			}
-		}
-
-		if !flag {
-			// main replica == 0
-			for j := 0; j < SDFS_REPLICA_NUM; j++ {
-				if failureHost.MachineID == memberList[j%N].Info.MachineID {
-					task := &SDFSTransferReplicaTask{
-						memberList[SDFS_REPLICA_NUM%N].Info,
-						val,
-						make(chan error),
-					}
-					tasks = append(tasks, task)
-					break
-				}
-			}
-		}
-	}
-	SDFSFileInfoMapMux.RUnlock()
-
+func SDFSDoReplicaTransferTasks(tasks []*SDFSReplicaTransferTask) {
 	for _, t := range tasks {
-		go func(task *SDFSTransferReplicaTask) {
+		go func(task *SDFSReplicaTransferTask) {
 			var (
 				content []byte = nil
 				length  int    = 0
@@ -251,7 +206,7 @@ func SDFSFailureHandle(memberList []MemberInfo, failureHost HostInfo) error {
 		}(t)
 	}
 
-	// Wait for all SDFSTransferReplicaTask
+	// Wait for all SDFSReplicaTransferTask
 	for _, task := range tasks {
 		err := <-task.Chan
 		if err != nil {
@@ -266,6 +221,124 @@ func SDFSFailureHandle(memberList []MemberInfo, failureHost HostInfo) error {
 			)
 		}
 	}
+}
+
+func SDFSReplicaHostAdd(memberList []MemberInfo, addHost HostInfo) error {
+	var tasks []*SDFSReplicaTransferTask
+	var removeList []string = make([]string, 0)
+	N := len(memberList)
+
+	SDFSFileInfoMapMux.Lock()
+	for filename, val := range SDFSFileInfoMap {
+		val.Lock.RLock()
+		k := val.Key
+		val.Lock.RUnlock()
+
+		flag := false
+		for i, mem := range memberList {
+			if mem.Info.MachineID >= k {
+				// main replica == i
+				for j := 0; j < SDFS_REPLICA_NUM; j++ {
+					if addHost.MachineID == memberList[(i+j)%N].Info.MachineID {
+						task := &SDFSReplicaTransferTask{
+							addHost,
+							val,
+							make(chan error),
+						}
+						tasks = append(tasks, task)
+						break
+					}
+				}
+
+				// remove file from map if it was the original last replica
+				if memberList[(i+SDFS_REPLICA_NUM)%N].Info.MachineID == Cfg.Self.MachineID {
+					removeList = append(removeList, filename)
+				}
+
+				flag = true
+				break
+			}
+		}
+
+		if !flag {
+			// main replica == 0
+			for j := 0; j < SDFS_REPLICA_NUM; j++ {
+				if addHost.MachineID == memberList[j%N].Info.MachineID {
+					task := &SDFSReplicaTransferTask{
+						addHost,
+						val,
+						make(chan error),
+					}
+					tasks = append(tasks, task)
+					break
+				}
+			}
+
+			// remove file from map if it was the original last replica
+			if memberList[SDFS_REPLICA_NUM%N].Info.MachineID == Cfg.Self.MachineID {
+				removeList = append(removeList, filename)
+			}
+		}
+	}
+
+	for _, removeFilename := range removeList {
+		delete(SDFSFileInfoMap, removeFilename)
+	}
+	SDFSFileInfoMapMux.Unlock()
+
+	SDFSDoReplicaTransferTasks(tasks)
+
+	return nil
+}
+
+func SDFSReplicaHostDelete(memberList []MemberInfo, deleteHost HostInfo) error {
+	var tasks []*SDFSReplicaTransferTask
+	N := len(memberList)
+
+	SDFSFileInfoMapMux.RLock()
+	for _, val := range SDFSFileInfoMap {
+		val.Lock.RLock()
+		k := val.Key
+		val.Lock.RUnlock()
+
+		flag := false
+		for i, mem := range memberList {
+			if mem.Info.MachineID >= k {
+				// main replica == i
+				for j := 0; j < SDFS_REPLICA_NUM; j++ {
+					if deleteHost.MachineID == memberList[(i+j)%N].Info.MachineID {
+						task := &SDFSReplicaTransferTask{
+							memberList[(i+SDFS_REPLICA_NUM)%N].Info,
+							val,
+							make(chan error),
+						}
+						tasks = append(tasks, task)
+						break
+					}
+				}
+				flag = true
+				break
+			}
+		}
+
+		if !flag {
+			// main replica == 0
+			for j := 0; j < SDFS_REPLICA_NUM; j++ {
+				if deleteHost.MachineID == memberList[j%N].Info.MachineID {
+					task := &SDFSReplicaTransferTask{
+						memberList[SDFS_REPLICA_NUM%N].Info,
+						val,
+						make(chan error),
+					}
+					tasks = append(tasks, task)
+					break
+				}
+			}
+		}
+	}
+	SDFSFileInfoMapMux.RUnlock()
+
+	SDFSDoReplicaTransferTasks(tasks)
 
 	return nil
 }

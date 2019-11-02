@@ -465,7 +465,10 @@ func (t *RpcS2S) MemberJoin(args *ArgMemberJoin, reply *ReplyMemberJoin) error {
 		)
 	}
 
-	AddMember(HostInfo(*args))
+	inWindowFlag, newList, _ := AddMember(HostInfo(*args))
+	if inWindowFlag {
+		SDFSReplicaHostAdd(newList, HostInfo(*args))
+	}
 	return nil
 }
 
@@ -489,7 +492,10 @@ func (t *RpcS2S) MemberLeave(args *ArgMemberLeave, reply *ReplyMemberLeave) erro
 		args.MachineID,
 	)
 
-	DeleteMember(HostInfo(*args))
+	inWindowFlag, oldList, _ := DeleteMember(HostInfo(*args))
+	if inWindowFlag {
+		SDFSReplicaHostDelete(oldList, HostInfo(*args))
+	}
 	return nil
 }
 
@@ -509,7 +515,7 @@ func (t *RpcS2S) MemberFailure(args *ArgMemberFailure, reply *ReplyMemberFailure
 			args.FailureInfo.MachineID,
 		)
 		if inWindowFlag {
-			SDFSFailureHandle(oldList, args.FailureInfo)
+			SDFSReplicaHostDelete(oldList, args.FailureInfo)
 		}
 	} else {
 		// if failure machine is myself
