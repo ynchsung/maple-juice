@@ -207,6 +207,20 @@ func SDFSListFile() []SDFSFileInfo2 {
 	return ret
 }
 
+func SDFSEraseFile() error {
+	SDFSFileInfoMapMux.Lock()
+	defer SDFSFileInfoMapMux.Unlock()
+
+	SDFSFileInfoMap = make(map[string]*SDFSFileInfo)
+
+	SDFSFileVersionSequenceMapMux.Lock()
+	defer SDFSFileVersionSequenceMapMux.Unlock()
+
+	SDFSFileVersionSequenceMap = make(map[string]*SDFSVersionSequence)
+
+	return nil
+}
+
 func SDFSDoReplicaTransferTasks(tasks []*SDFSReplicaTransferTask) {
 	for _, t := range tasks {
 		go func(task *SDFSReplicaTransferTask) {
@@ -265,6 +279,7 @@ func SDFSReplicaHostAdd(memberList []MemberInfo, addHost HostInfo) error {
 	N := len(memberList)
 
 	SDFSFileInfoMapMux.Lock()
+	SDFSFileVersionSequenceMapMux.Lock()
 	for filename, val := range SDFSFileInfoMap {
 		val.Lock.RLock()
 		k := val.Key
@@ -319,7 +334,9 @@ func SDFSReplicaHostAdd(memberList []MemberInfo, addHost HostInfo) error {
 
 	for _, removeFilename := range removeList {
 		delete(SDFSFileInfoMap, removeFilename)
+		delete(SDFSFileVersionSequenceMap, removeFilename)
 	}
+	SDFSFileVersionSequenceMapMux.Unlock()
 	SDFSFileInfoMapMux.Unlock()
 
 	SDFSDoReplicaTransferTasks(tasks)

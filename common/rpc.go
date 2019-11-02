@@ -109,6 +109,7 @@ func (t *RpcClient) MemberJoin(args *ArgClientMemberJoin, reply *ReplyClientMemb
 func (t *RpcClient) MemberLeave(args *ArgClientMemberLeave, reply *ReplyClientMemberLeave) error {
 	members := GetMemberList()
 	EraseMemberList()
+	SDFSEraseFile()
 
 	time.Sleep(time.Second)
 
@@ -398,7 +399,7 @@ func (t *RpcClient) ListHostsByFile(args *ArgClientListHostsByFile, reply *Reply
 				err,
 			)
 		} else {
-			exist := task.Reply.(bool)
+			exist := bool(*(task.Reply.(*ReplyExistFile)))
 			if exist {
 				reply.Hosts = append(reply.Hosts, task.Info)
 			}
@@ -429,7 +430,7 @@ func (t *RpcClient) ListFilesByHost(args *ArgClientListFilesByHost, reply *Reply
 
 			err := <-task.Chan
 			if err == nil {
-				reply.Files = task.Reply.([]SDFSFileInfo2)
+				reply.Files = []SDFSFileInfo2(*(task.Reply.(*ReplyListFile)))
 			} else {
 				reply.Flag = false
 				reply.ErrStr = err.Error()

@@ -335,7 +335,7 @@ func ls() {
 	)
 
 	task := common.RpcAsyncCallerTask{
-		"ClientListHostsByFile",
+		"ListHostsByFile",
 		common.HostInfo{os.Args[2], os.Args[3], "", 0},
 		&args,
 		&reply,
@@ -373,7 +373,7 @@ func store() {
 	)
 
 	task := common.RpcAsyncCallerTask{
-		"ClientListFilesByHost",
+		"ListFilesByHost",
 		common.HostInfo{os.Args[2], os.Args[3], "", 0},
 		&args,
 		&reply,
