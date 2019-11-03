@@ -52,6 +52,20 @@ func GrepFile(path string, str string, isRegex bool) (*GrepInfo, error) {
 	return ret, nil
 }
 
+func CreateFile(path string, size int) error {
+	fp, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		return err
+	}
+	defer fp.Close()
+
+	for i := 0; i < size; i++ {
+		fp.Write([]byte("0"))
+	}
+
+	return nil
+}
+
 func WriteFile(path string, content []byte) (int, error) {
 	fp, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
@@ -60,6 +74,18 @@ func WriteFile(path string, content []byte) (int, error) {
 	defer fp.Close()
 
 	n, err := fp.Write(content)
+	content = nil
+	return n, err
+}
+
+func WriteFileOffset(path string, offset int64, content []byte) (int, error) {
+	fp, err := os.OpenFile(path, os.O_WRONLY, 0644)
+	if err != nil {
+		return 0, err
+	}
+	defer fp.Close()
+
+	n, err := fp.WriteAt(content, offset)
 	content = nil
 	return n, err
 }

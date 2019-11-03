@@ -85,6 +85,7 @@ type ReplyUpdateFileVersion struct {
 type ReplyUpdateFile struct {
 	Flag   bool
 	ErrStr string
+	Finish bool
 }
 
 type ReplyGetFile struct {

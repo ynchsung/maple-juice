@@ -193,7 +193,25 @@ func (t *RpcClient) UpdateFile(args *ArgClientUpdateFile, reply *ReplyClientUpda
 	}
 	version := task.Reply.(*ReplyUpdateFileVersion).Version
 
-	// send PutFile request to all replicas
+	// prepare trunk argument
+	argsTrunks := make([]*ArgUpdateFile, 0)
+	offset := 0
+	l := len(args.Content)
+	for offset < l || deleteFlag {
+		end := offset + SDFS_MAX_BUFFER_SIZE
+		if end > l {
+			end = l
+		}
+		argsTrunks = append(argsTrunks, &ArgUpdateFile{filename, deleteFlag, version, args.Length, offset, args.Content[offset:end]})
+
+		if deleteFlag {
+			break
+		}
+
+		offset = end
+	}
+
+	// send all PutFile trunk requests to all replicas
 	cases := make([]reflect.SelectCase, len(replicaMap))
 	hostIndexMap := make(map[int]HostInfo)
 	i := 0
@@ -203,18 +221,11 @@ func (t *RpcClient) UpdateFile(args *ArgClientUpdateFile, reply *ReplyClientUpda
 		hostIndexMap[i] = mem.Info
 
 		go func(host HostInfo, c chan error) {
-			offset := 0
-			l := len(args.Content)
-			for offset < l || deleteFlag {
-				end := offset + SDFS_MAX_BUFFER_SIZE
-				if end > l {
-					end = l
-				}
-
+			for _, argsTrunk := range argsTrunks {
 				tk := &RpcAsyncCallerTask{
 					"UpdateFile",
 					host,
-					&ArgUpdateFile{filename, deleteFlag, version, args.Length, offset, args.Content[offset:end]},
+					argsTrunk,
 					new(ReplyUpdateFile),
 					make(chan error),
 				}
@@ -225,29 +236,31 @@ func (t *RpcClient) UpdateFile(args *ArgClientUpdateFile, reply *ReplyClientUpda
 				if err == nil {
 					log.Printf("[Info] Send UpdateFile to replica %v (file %v, version %v, delete %v, offset %v) success",
 						host.Host,
-						filename,
-						version,
-						deleteFlag,
-						offset,
+						argsTrunk.Filename,
+						argsTrunk.Version,
+						argsTrunk.DeleteFlag,
+						argsTrunk.Offset,
 					)
+					if tk.Reply.(*ReplyUpdateFile).Finish {
+						log.Printf("[Info] Replica %v finishes to update file %v, version %v, delete %v",
+							host.Host,
+							argsTrunk.Filename,
+							argsTrunk.Version,
+							argsTrunk.DeleteFlag,
+						)
+					}
 				} else {
 					log.Printf("[Error] Fail to send UpdateFile to replica %v (file %v, version %v, delete %v, offset %v): %v",
 						host.Host,
-						filename,
-						version,
-						deleteFlag,
-						offset,
+						argsTrunk.Filename,
+						argsTrunk.Version,
+						argsTrunk.DeleteFlag,
+						argsTrunk.Offset,
 						err,
 					)
 					c <- err
 					return
 				}
-
-				if deleteFlag {
-					break
-				}
-
-				offset = end
 			}
 
 			c <- nil
@@ -684,10 +697,12 @@ func (t *RpcS2S) UpdateFile(args *ArgUpdateFile, reply *ReplyUpdateFile) error {
 	reply.Flag = true
 	reply.ErrStr = ""
 
-	updated := SDFSUpdateFile(args.Filename, args.Version, args.DeleteFlag, args.Length, args.Offset, args.Content)
+	updated, finish := SDFSUpdateFile(args.Filename, args.Version, args.DeleteFlag, args.Length, args.Offset, args.Content)
+	reply.Finish = finish
 
-	log.Printf("[Info] UpdateFile (SKIP %v): file %v, version %v, delete %v, file length %v, offset %v, trunk length %v",
+	log.Printf("[Info] UpdateFile (SKIP %v, FINISH %v): file %v, version %v, delete %v, file length %v, offset %v, trunk length %v",
 		!updated,
+		finish,
 		args.Filename,
 		args.Version,
 		args.DeleteFlag,
@@ -695,8 +710,9 @@ func (t *RpcS2S) UpdateFile(args *ArgUpdateFile, reply *ReplyUpdateFile) error {
 		args.Offset,
 		len(args.Content),
 	)
-	fmt.Printf("UpdateFile (SKIP %v): file %v, version %v, delete %v, file length %v, offset %v, trunk length %v\n",
+	fmt.Printf("UpdateFile (SKIP %v, FINISH %v): file %v, version %v, delete %v, file length %v, offset %v, trunk length %v\n",
 		!updated,
+		finish,
 		args.Filename,
 		args.Version,
 		args.DeleteFlag,

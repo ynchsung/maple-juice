@@ -5,9 +5,7 @@ import (
 	"hash/fnv"
 	"log"
 	"math/rand"
-	"os"
 	"path/filepath"
-	"sort"
 	"sync"
 	"time"
 )
@@ -18,15 +16,15 @@ type SDFSVersionSequence struct {
 }
 
 type SDFSFileInfo struct {
-	Filename          string
-	StorePath         string
-	Key               int
-	Timestamp         time.Time
-	Version           int
-	DeleteFlag        bool
-	OffsetBufferMap   map[int][]byte
-	ReceivedByteCount int
-	Lock              sync.RWMutex
+	Filename         string
+	StorePath        string
+	Key              int
+	Timestamp        time.Time
+	Version          int
+	DeleteFlag       bool
+	OffsetWrittenMap map[int]int
+	WrittenByteCount int
+	Lock             sync.RWMutex
 }
 
 type SDFSFileInfo2 struct {
@@ -43,7 +41,7 @@ type SDFSReplicaTransferTask struct {
 }
 
 const (
-	SDFS_MAX_BUFFER_SIZE = 1024 * 1024
+	SDFS_MAX_BUFFER_SIZE = 25
 
 	SDFS_REPLICA_NUM               = 4
 	SDFS_REPLICA_QUORUM_WRITE_SIZE = 4
@@ -139,7 +137,7 @@ func SDFSUpdateFileVersion(filename string, force bool) (int, bool) {
 	return val.Version, true
 }
 
-func SDFSUpdateFile(filename string, version int, deleteFlag bool, fileLength int, offset int, content []byte) bool {
+func SDFSUpdateFile(filename string, version int, deleteFlag bool, fileLength int, offset int, content []byte) (bool, bool) {
 	SDFSFileInfoMapMux.Lock()
 	val, ok := SDFSFileInfoMap[filename]
 	if !ok {
@@ -150,7 +148,7 @@ func SDFSUpdateFile(filename string, version int, deleteFlag bool, fileLength in
 			time.Now(),
 			0,
 			false,
-			make(map[int][]byte),
+			make(map[int]int),
 			0,
 			sync.RWMutex{},
 		}
@@ -163,59 +161,49 @@ func SDFSUpdateFile(filename string, version int, deleteFlag bool, fileLength in
 
 	if val.Version > version {
 		// current version is newer, no need to update
-		return false
-	} else if val.Version == version && (deleteFlag || fileLength == val.ReceivedByteCount) {
+		return false, true
+	} else if val.Version == version && (deleteFlag || fileLength == val.WrittenByteCount) {
 		// current version is same as the trunk's version
 		// and current version file has already been flushed or deleted
-		return false
+		return false, true
 	}
 
 	val.Timestamp = time.Now()
 	val.DeleteFlag = deleteFlag
 
+	finish := false
 	if deleteFlag {
 		val.Version = version
-		val.OffsetBufferMap = make(map[int][]byte)
-		val.ReceivedByteCount = 0
+		val.OffsetWrittenMap = make(map[int]int)
+		val.WrittenByteCount = 0
 		DeleteFile(val.StorePath)
+		finish = true
 	} else {
 		if val.Version < version {
 			// means initial write
 			val.Version = version
-			val.OffsetBufferMap = make(map[int][]byte)
-			val.ReceivedByteCount = 0
+			val.OffsetWrittenMap = make(map[int]int)
+			val.WrittenByteCount = 0
+			CreateFile(val.StorePath, fileLength)
 		}
 
-		if _, ok := val.OffsetBufferMap[offset]; ok {
-			// trunk has already exist, skip
-			return false
+		if _, ok := val.OffsetWrittenMap[offset]; ok {
+			// trunk has already been written, skip
+			return false, (fileLength == val.WrittenByteCount)
 		}
 
-		val.OffsetBufferMap[offset] = content
-		val.ReceivedByteCount += len(content)
+		val.OffsetWrittenMap[offset] = 1
+		val.WrittenByteCount += len(content)
 
-		if val.ReceivedByteCount == fileLength {
-			// flush
-			offsets := make([]int, 0)
-			for k, _ := range val.OffsetBufferMap {
-				offsets = append(offsets, k)
-			}
-			sort.Ints(offsets)
+		WriteFileOffset(val.StorePath, int64(offset), content)
 
-			// TODO: error handling
-			fp, _ := os.OpenFile(val.StorePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
-			defer fp.Close()
-
-			for _, k := range offsets {
-				fp.Write(val.OffsetBufferMap[k])
-			}
-
-			// erase buffer
-			val.OffsetBufferMap = make(map[int][]byte)
+		if fileLength == val.WrittenByteCount {
+			finish = true
 		}
+
 	}
 
-	return true
+	return true, finish
 }
 
 func SDFSReadFile(filename string) (int, bool, int, []byte, error) {
