@@ -5,7 +5,9 @@ import (
 	"hash/fnv"
 	"log"
 	"math/rand"
+	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 	"time"
 )
@@ -16,15 +18,15 @@ type SDFSVersionSequence struct {
 }
 
 type SDFSFileInfo struct {
-	Filename         string
-	StorePath        string
-	Key              int
-	Timestamp        time.Time
-	Version          int
-	DeleteFlag       bool
-	OffsetWrittenMap map[int]int
-	WrittenByteCount int
-	Lock             sync.RWMutex
+	Filename          string
+	StorePath         string
+	Key               int
+	Timestamp         time.Time
+	Version           int
+	DeleteFlag        bool
+	OffsetBufferMap   map[int][]byte
+	ReceivedByteCount int
+	Lock              sync.RWMutex
 }
 
 type SDFSFileInfo2 struct {
@@ -148,7 +150,7 @@ func SDFSUpdateFile(filename string, version int, deleteFlag bool, fileLength in
 			time.Now(),
 			0,
 			false,
-			make(map[int]int),
+			make(map[int][]byte),
 			0,
 			sync.RWMutex{},
 		}
@@ -162,7 +164,7 @@ func SDFSUpdateFile(filename string, version int, deleteFlag bool, fileLength in
 	if val.Version > version {
 		// current version is newer, no need to update
 		return false, true
-	} else if val.Version == version && (deleteFlag || fileLength == val.WrittenByteCount) {
+	} else if val.Version == version && (deleteFlag || fileLength == val.ReceivedByteCount) {
 		// current version is same as the trunk's version
 		// and current version file has already been flushed or deleted
 		return false, true
@@ -174,33 +176,47 @@ func SDFSUpdateFile(filename string, version int, deleteFlag bool, fileLength in
 	finish := false
 	if deleteFlag {
 		val.Version = version
-		val.OffsetWrittenMap = make(map[int]int)
-		val.WrittenByteCount = 0
+		val.OffsetBufferMap = make(map[int][]byte)
+		val.ReceivedByteCount = 0
 		DeleteFile(val.StorePath)
 		finish = true
 	} else {
 		if val.Version < version {
 			// means initial write
 			val.Version = version
-			val.OffsetWrittenMap = make(map[int]int)
-			val.WrittenByteCount = 0
-			CreateFile(val.StorePath, fileLength)
+			val.OffsetBufferMap = make(map[int][]byte)
+			val.ReceivedByteCount = 0
 		}
 
-		if _, ok := val.OffsetWrittenMap[offset]; ok {
+		if _, ok := val.OffsetBufferMap[offset]; ok {
 			// trunk has already been written, skip
-			return false, (fileLength == val.WrittenByteCount)
+			return false, (fileLength == val.ReceivedByteCount)
 		}
 
-		val.OffsetWrittenMap[offset] = 1
-		val.WrittenByteCount += len(content)
+		val.OffsetBufferMap[offset] = content
+		val.ReceivedByteCount += len(content)
 
-		WriteFileOffset(val.StorePath, int64(offset), content)
-
-		if fileLength == val.WrittenByteCount {
+		if val.ReceivedByteCount == fileLength {
 			finish = true
-		}
 
+			// flush
+			offsets := make([]int, 0)
+			for k, _ := range val.OffsetBufferMap {
+				offsets = append(offsets, k)
+			}
+			sort.Ints(offsets)
+
+			// TODO: error handling
+			fp, _ := os.OpenFile(val.StorePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+			defer fp.Close()
+
+			for _, k := range offsets {
+				fp.Write(val.OffsetBufferMap[k])
+			}
+
+			// erase buffer
+			val.OffsetBufferMap = make(map[int][]byte)
+		}
 	}
 
 	return true, finish
