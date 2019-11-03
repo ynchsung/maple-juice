@@ -59,7 +59,9 @@ func WriteFile(path string, content []byte) (int, error) {
 	}
 	defer fp.Close()
 
-	return fp.Write(content)
+	n, err := fp.Write(content)
+	content = nil
+	return n, err
 }
 
 func DeleteFile(path string) error {

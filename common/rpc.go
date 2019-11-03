@@ -218,6 +218,7 @@ func (t *RpcClient) UpdateFile(args *ArgClientUpdateFile, reply *ReplyClientUpda
 	for i < SDFS_REPLICA_QUORUM_WRITE_SIZE && j < len(tasks) {
 		chosen, value, _ := reflect.Select(cases)
 		if tasks[chosen] != nil {
+			tasks[chosen].Args.(*ArgUpdateFile).Content = nil
 			errInt := value.Interface()
 			if errInt != nil {
 				log.Printf("[Error] Quorum update %v-th node (host %v, file %v, version %v, delete %v) error: %v",
@@ -255,6 +256,8 @@ func (t *RpcClient) UpdateFile(args *ArgClientUpdateFile, reply *ReplyClientUpda
 			RpcAsyncCallerTaskWaitQueueMux.Unlock()
 		}
 	}
+
+	args.Content = nil
 
 	return nil
 }
@@ -665,6 +668,7 @@ func (t *RpcS2S) UpdateFile(args *ArgUpdateFile, reply *ReplyUpdateFile) error {
 		args.Version,
 		args.DeleteFlag,
 	)
+	args.Content = nil
 
 	return nil
 }

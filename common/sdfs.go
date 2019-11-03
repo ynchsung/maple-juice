@@ -162,7 +162,8 @@ func SDFSUpdateFile(filename string, version int, deleteFlag bool, length int, c
 	val.DeleteFlag = deleteFlag
 
 	if !deleteFlag {
-		WriteFile(val.StorePath, content[0:length])
+		WriteFile(val.StorePath, content)
+		content = nil
 	} else {
 		DeleteFile(val.StorePath)
 	}
