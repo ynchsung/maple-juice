@@ -246,6 +246,8 @@ func put_file(force bool) {
 	token := common.GenRandomString(16)
 
 	// prepare trunk argument
+	st := time.Now().UnixNano()
+	finish := false
 	offset := 0
 	l := len(content)
 	for offset < l {
@@ -259,6 +261,9 @@ func put_file(force bool) {
 			fmt.Printf("Error: %v\n", err)
 		} else {
 			fmt.Printf("PutFile (offset %v) result %v, finish %v\n", offset, reply.Flag, reply.Finish)
+			if reply.Finish {
+				finish = true
+			}
 			if !reply.Flag {
 				fmt.Printf("Error %v\n", reply.ErrStr)
 				if !force && reply.NeedForce {
@@ -289,6 +294,8 @@ func put_file(force bool) {
 
 		offset = end
 	}
+	ed := time.Now().UnixNano()
+	fmt.Printf("PutFile %v -> %v finish %v, time %v ns\n", os.Args[4], os.Args[5], finish, ed-st)
 }
 
 func delete_file(force bool) {
