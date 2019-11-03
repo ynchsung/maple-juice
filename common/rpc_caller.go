@@ -26,6 +26,7 @@ func CallRpcClientGeneral(task *RpcAsyncCallerTask) {
 	}
 
 	task.Chan <- client.Call("RpcClient."+task.RpcName, task.Args, task.Reply)
+	client.Close()
 }
 
 func CallRpcS2SGeneral(task *RpcAsyncCallerTask) {
@@ -36,6 +37,7 @@ func CallRpcS2SGeneral(task *RpcAsyncCallerTask) {
 	}
 
 	task.Chan <- client.Call("RpcS2S."+task.RpcName, task.Args, task.Reply)
+	client.Close()
 }
 
 func CallRpcS2SGrepFile(host string, port string, args *ArgGrep, reply *ReplyGrep, c chan error) {
