@@ -3,6 +3,7 @@ package common
 import (
 	"bufio"
 	"io/ioutil"
+	"math/rand"
 	"os"
 	"regexp"
 )
@@ -96,4 +97,17 @@ func DeleteFile(path string) error {
 
 func ReadFile(path string) ([]byte, error) {
 	return ioutil.ReadFile(path)
+}
+
+func GenRandomString(size int) string {
+	const (
+		l string = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	)
+
+	ret := make([]byte, size)
+	for i := 0; i < size; i++ {
+		ret[i] = l[rand.Intn(len(l))]
+	}
+
+	return string(ret)
 }

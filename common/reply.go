@@ -33,6 +33,7 @@ type ReplyClientMemberLeave struct {
 type ReplyClientUpdateFile struct {
 	Flag      bool
 	ErrStr    string
+	Finish    bool
 	NeedForce bool
 }
 

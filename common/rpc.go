@@ -9,10 +9,25 @@ import (
 	"time"
 )
 
+type UpdateFileRequest struct {
+	Token      string
+	ReplicaMap map[string]MemberInfo
+	Version    int
+	Flag       bool
+	ErrStr     string
+	NeedForce  bool
+
+	FinishReplicaMap map[string]int
+	Lock             sync.RWMutex
+}
+
 // TODO: add a queue to wait tasks
 var (
 	RpcAsyncCallerTaskWaitQueue    []*RpcAsyncCallerTask
 	RpcAsyncCallerTaskWaitQueueMux sync.Mutex
+
+	RpcUpdateFileRequestMap    map[string]*UpdateFileRequest = make(map[string]*UpdateFileRequest)
+	RpcUpdateFileRequestMapMux sync.RWMutex
 )
 
 type RpcClient struct {
@@ -156,151 +171,130 @@ func (t *RpcClient) MemberLeave(args *ArgClientMemberLeave, reply *ReplyClientMe
 func (t *RpcClient) UpdateFile(args *ArgClientUpdateFile, reply *ReplyClientUpdateFile) error {
 	reply.Flag = true
 	reply.ErrStr = ""
+	reply.Finish = false
+	reply.NeedForce = false
 
-	filename := args.Filename
-	deleteFlag := args.DeleteFlag
+	requestToken := args.RequestToken
 
-	k := SDFSHash(filename)
-	mainReplica, replicaMap := GetReplicasByKey(k)
-	if len(replicaMap) == 0 {
-		reply.Flag = false
-		reply.ErrStr = "no members in the cluster"
-		return nil
-	}
-
-	// update file version # on main replica
-	task := &RpcAsyncCallerTask{
-		"UpdateFileVersion",
-		mainReplica.Info,
-		&ArgUpdateFileVersion{filename, args.ForceFlag},
-		new(ReplyUpdateFileVersion),
-		make(chan error),
-	}
-	go CallRpcS2SGeneral(task)
-	err := <-task.Chan
-	if err == nil && !task.Reply.(*ReplyUpdateFileVersion).Flag {
-		err = errors.New(task.Reply.(*ReplyUpdateFileVersion).ErrStr)
-	}
-	if err != nil {
-		log.Printf("[Error] Fail to update file version on main replica %v: %v",
-			task.Info.Host,
-			err,
-		)
-		reply.Flag = false
-		reply.ErrStr = "fail to update file version on main replica " + task.Info.Host + ": " + err.Error()
-		reply.NeedForce = task.Reply.(*ReplyUpdateFileVersion).NeedForce
-		return nil
-	}
-	version := task.Reply.(*ReplyUpdateFileVersion).Version
-
-	// prepare trunk argument
-	argsTrunks := make([]*ArgUpdateFile, 0)
-	offset := 0
-	l := len(args.Content)
-	for offset < l || deleteFlag {
-		end := offset + SDFS_MAX_BUFFER_SIZE
-		if end > l {
-			end = l
+	if args.Offset == 0 {
+		requestInfo := &UpdateFileRequest{
+			requestToken,
+			nil,
+			0,
+			true,
+			"",
+			false,
+			make(map[string]int),
+			sync.RWMutex{},
 		}
-		argsTrunks = append(argsTrunks, &ArgUpdateFile{filename, deleteFlag, version, args.Length, offset, args.Content[offset:end]})
 
-		if deleteFlag {
+		mainReplica, replicaMap := GetReplicasByKey(SDFSHash(args.Filename))
+		if len(replicaMap) == 0 {
+			requestInfo.Flag = false
+			requestInfo.ErrStr = "no members in the cluster"
+		} else {
+			requestInfo.ReplicaMap = replicaMap
+
+			// update file version # on main replica
+			task := &RpcAsyncCallerTask{
+				"UpdateFileVersion",
+				mainReplica.Info,
+				&ArgUpdateFileVersion{args.Filename, args.ForceFlag},
+				new(ReplyUpdateFileVersion),
+				make(chan error),
+			}
+
+			go CallRpcS2SGeneral(task)
+
+			err := <-task.Chan
+			if err == nil && !task.Reply.(*ReplyUpdateFileVersion).Flag {
+				err = errors.New(task.Reply.(*ReplyUpdateFileVersion).ErrStr)
+			}
+
+			if err == nil {
+				requestInfo.Version = task.Reply.(*ReplyUpdateFileVersion).Version
+			} else {
+				log.Printf("[Error] Fail to update file version on main replica %v: %v",
+					task.Info.Host,
+					err,
+				)
+				requestInfo.Flag = false
+				requestInfo.ErrStr = "fail to update file version on main replica " + task.Info.Host + ": " + err.Error()
+				requestInfo.NeedForce = task.Reply.(*ReplyUpdateFileVersion).NeedForce
+			}
+		}
+
+		RpcUpdateFileRequestMapMux.Lock()
+		RpcUpdateFileRequestMap[requestToken] = requestInfo
+		RpcUpdateFileRequestMapMux.Unlock()
+	}
+
+	requestInfo := (*UpdateFileRequest)(nil)
+	for {
+		RpcUpdateFileRequestMapMux.RLock()
+		temp, ok := RpcUpdateFileRequestMap[requestToken]
+		if ok {
+			requestInfo = temp
+		}
+		RpcUpdateFileRequestMapMux.RUnlock()
+
+		if requestInfo != nil {
 			break
 		}
 
-		offset = end
+		time.Sleep(100 * time.Millisecond)
 	}
 
-	// send all PutFile trunk requests to all replicas
-	cases := make([]reflect.SelectCase, len(replicaMap))
-	hostIndexMap := make(map[int]HostInfo)
-	i := 0
-	for _, mem := range replicaMap {
-		tmpChan := make(chan error)
-		cases[i] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(tmpChan)}
-		hostIndexMap[i] = mem.Info
-
-		go func(host HostInfo, c chan error) {
-			for _, argsTrunk := range argsTrunks {
-				tk := &RpcAsyncCallerTask{
-					"UpdateFile",
-					host,
-					argsTrunk,
-					new(ReplyUpdateFile),
-					make(chan error),
-				}
-
-				go CallRpcS2SGeneral(tk)
-
-				err := <-tk.Chan
-				if err == nil {
-					log.Printf("[Info] Send UpdateFile to replica %v (file %v, version %v, delete %v, offset %v) success",
-						host.Host,
-						argsTrunk.Filename,
-						argsTrunk.Version,
-						argsTrunk.DeleteFlag,
-						argsTrunk.Offset,
-					)
-					if tk.Reply.(*ReplyUpdateFile).Finish {
-						log.Printf("[Info] Replica %v finishes to update file %v, version %v, delete %v",
-							host.Host,
-							argsTrunk.Filename,
-							argsTrunk.Version,
-							argsTrunk.DeleteFlag,
-						)
-					}
-				} else {
-					log.Printf("[Error] Fail to send UpdateFile to replica %v (file %v, version %v, delete %v, offset %v): %v",
-						host.Host,
-						argsTrunk.Filename,
-						argsTrunk.Version,
-						argsTrunk.DeleteFlag,
-						argsTrunk.Offset,
-						err,
-					)
-					c <- err
-					return
-				}
-			}
-
-			c <- nil
-		}(mem.Info, tmpChan)
-		i += 1
+	if !requestInfo.Flag {
+		reply.Flag = requestInfo.Flag
+		reply.ErrStr = requestInfo.ErrStr
+		reply.Finish = false
+		reply.NeedForce = requestInfo.NeedForce
+		return nil
 	}
 
-	// wait for quorum finish updating
-	i, j := 0, 0
-	for i < SDFS_REPLICA_QUORUM_WRITE_SIZE && j < len(replicaMap) {
-		chosen, value, _ := reflect.Select(cases)
-		if hostInfo, ok := hostIndexMap[chosen]; ok {
-			errInt := value.Interface()
-			if errInt != nil {
-				log.Printf("[Error] Quorum update %v-th node (host %v, file %v, version %v, delete %v) error: %v",
-					j,
-					hostInfo.Host,
-					filename,
-					version,
-					deleteFlag,
-					errInt.(error),
-				)
-			} else {
-				log.Printf("[Info] Quorum update %v-th node (host %v, file %v, version %v, delete %v) success",
-					j,
-					hostInfo.Host,
-					filename,
-					version,
-					deleteFlag,
-				)
-				i += 1
+	// forward trunk to replicas
+	var tasks []*RpcAsyncCallerTask
+	for _, mem := range requestInfo.ReplicaMap {
+		task := &RpcAsyncCallerTask{
+			"UpdateFile",
+			mem.Info,
+			&ArgUpdateFile{args.Filename, args.DeleteFlag, requestInfo.Version, args.Length, args.Offset, args.Content},
+			new(ReplyUpdateFile),
+			make(chan error),
+		}
+
+		go CallRpcS2SGeneral(task)
+
+		tasks = append(tasks, task)
+	}
+
+	// Wait for all RpcAsyncCallerTask
+	for _, task := range tasks {
+		err := <-task.Chan
+		if err != nil {
+			log.Printf("[Error] send RpcUpdateFile to %v (file %v, version %v, delete %v, offset %v) error: %v",
+				task.Info.Host,
+				args.Filename,
+				requestInfo.Version,
+				args.DeleteFlag,
+				args.Offset,
+				err,
+			)
+		} else {
+			if task.Reply.(*ReplyUpdateFile).Finish {
+				requestInfo.Lock.Lock()
+				requestInfo.FinishReplicaMap[task.Info.Host] = 1
+				requestInfo.Lock.Unlock()
 			}
-			delete(hostIndexMap, chosen)
-			j += 1
 		}
 	}
-	if i < SDFS_REPLICA_QUORUM_WRITE_SIZE {
-		reply.Flag = false
-		reply.ErrStr = "fail to update file to enough replicas (quorum)"
+
+	requestInfo.Lock.RLock()
+	if len(requestInfo.FinishReplicaMap) >= SDFS_REPLICA_QUORUM_WRITE_SIZE {
+		reply.Finish = true
 	}
+	requestInfo.Lock.RUnlock()
 
 	return nil
 }

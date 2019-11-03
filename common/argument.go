@@ -20,11 +20,13 @@ type ArgClientMemberJoin int
 type ArgClientMemberLeave int
 
 type ArgClientUpdateFile struct {
-	Filename   string
-	DeleteFlag bool
-	Length     int
-	Content    []byte
-	ForceFlag  bool
+	RequestToken string
+	Filename     string
+	DeleteFlag   bool
+	Length       int
+	Offset       int
+	Content      []byte
+	ForceFlag    bool
 }
 
 type ArgClientGetFile struct {
