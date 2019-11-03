@@ -210,19 +210,16 @@ func member_leave() {
 	}
 }
 
-func put_file(force bool) {
+func put_file_offset(token string, fileLength int, offset int, content []byte, force bool) (*common.ReplyClientUpdateFile, error) {
 	var (
 		args  common.ArgClientUpdateFile
 		reply common.ReplyClientUpdateFile
 	)
-
-	content, err := ioutil.ReadFile(os.Args[4])
-	if err != nil {
-		panic(err)
-	}
+	args.RequestToken = token
 	args.Filename = os.Args[5]
 	args.DeleteFlag = false
-	args.Length = len(content)
+	args.Length = fileLength
+	args.Offset = offset
 	args.Content = content
 	args.ForceFlag = force
 
@@ -236,36 +233,61 @@ func put_file(force bool) {
 
 	go common.CallRpcClientGeneral(&task)
 
-	err = <-task.Chan
-	if err != nil {
-		fmt.Printf("Error: %v\n", err)
-	} else {
-		fmt.Printf("PutFile result %v\n", reply.Flag)
-		if !reply.Flag {
-			fmt.Printf("Error %v\n", reply.ErrStr)
-			if !force && reply.NeedForce {
-				c := make(chan bool)
-				go func() {
-					reader := bufio.NewReader(os.Stdin)
-					fmt.Printf("Want to force put (y/n)? ")
-					text, _ := reader.ReadString('\n')
-					if text == "y\n" {
-						c <- true
-					} else {
-						c <- false
-					}
-				}()
+	err := <-task.Chan
+	return &reply, err
+}
 
-				select {
-				case x := <-c:
-					if x {
-						put_file(true)
+func put_file(force bool) {
+	content, err := ioutil.ReadFile(os.Args[4])
+	if err != nil {
+		panic(err)
+	}
+
+	token := common.GenRandomString(16)
+
+	// prepare trunk argument
+	offset := 0
+	l := len(content)
+	for offset < l {
+		end := offset + common.SDFS_MAX_BUFFER_SIZE
+		if end > l {
+			end = l
+		}
+
+		reply, err := put_file_offset(token, l, offset, content[offset:end], force)
+		if err != nil {
+			fmt.Printf("Error: %v\n", err)
+		} else {
+			fmt.Printf("PutFile (offset %v) result %v, finish %v\n", offset, reply.Flag, reply.Finish)
+			if !reply.Flag {
+				fmt.Printf("Error %v\n", reply.ErrStr)
+				if !force && reply.NeedForce {
+					c := make(chan bool)
+					go func() {
+						reader := bufio.NewReader(os.Stdin)
+						fmt.Printf("Want to force put (y/n)? ")
+						text, _ := reader.ReadString('\n')
+						if text == "y\n" {
+							c <- true
+						} else {
+							c <- false
+						}
+					}()
+
+					select {
+					case x := <-c:
+						if x {
+							put_file(true)
+						}
+					case <-time.After(30 * time.Second):
+						fmt.Printf("Timeout after 30 seconds, abort put\n")
 					}
-				case <-time.After(30 * time.Second):
-					fmt.Printf("Timeout after 30 seconds, abort put\n")
 				}
+				return
 			}
 		}
+
+		offset = end
 	}
 }
 
@@ -279,6 +301,7 @@ func delete_file(force bool) {
 	args.DeleteFlag = true
 	args.Length = 0
 	args.Content = nil
+	args.Offset = 0
 	args.ForceFlag = force
 
 	task := common.RpcAsyncCallerTask{
@@ -295,7 +318,7 @@ func delete_file(force bool) {
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 	} else {
-		fmt.Printf("DeleteFile result %v\n", reply.Flag)
+		fmt.Printf("DeleteFile result %v, finish %v\n", reply.Flag, reply.Finish)
 		if !reply.Flag {
 			fmt.Printf("Error %v\n", reply.ErrStr)
 			if !force && reply.NeedForce {
