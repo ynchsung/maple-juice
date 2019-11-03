@@ -39,8 +39,9 @@ type SDFSReplicaTransferTask struct {
 }
 
 const (
-	SDFS_REPLICA_NUM    = 4
-	SDFS_REPLICA_QUORUM = 3
+	SDFS_REPLICA_NUM               = 4
+	SDFS_REPLICA_QUORUM_WRITE_SIZE = 4
+	SDFS_REPLICA_QUORUM_READ_SIZE  = 1
 )
 
 var (

@@ -215,7 +215,7 @@ func (t *RpcClient) UpdateFile(args *ArgClientUpdateFile, reply *ReplyClientUpda
 
 	// wait for quorum finish updating
 	i, j := 0, 0
-	for i < SDFS_REPLICA_QUORUM && j < len(tasks) {
+	for i < SDFS_REPLICA_QUORUM_WRITE_SIZE && j < len(tasks) {
 		chosen, value, _ := reflect.Select(cases)
 		if tasks[chosen] != nil {
 			errInt := value.Interface()
@@ -242,7 +242,7 @@ func (t *RpcClient) UpdateFile(args *ArgClientUpdateFile, reply *ReplyClientUpda
 			j += 1
 		}
 	}
-	if i < SDFS_REPLICA_QUORUM {
+	if i < SDFS_REPLICA_QUORUM_WRITE_SIZE {
 		reply.Flag = false
 		reply.ErrStr = "fail to update file to enough replicas (quorum)"
 	}
@@ -296,7 +296,7 @@ func (t *RpcClient) GetFile(args *ArgClientGetFile, reply *ReplyClientGetFile) e
 	// wait for quorum finish reading and choose the latest version
 	maxVersion := -1
 	i, j := 0, 0
-	for i < SDFS_REPLICA_QUORUM && j < len(tasks) {
+	for i < SDFS_REPLICA_QUORUM_READ_SIZE && j < len(tasks) {
 		chosen, value, _ := reflect.Select(cases)
 		if tasks[chosen] != nil {
 			errInt := value.Interface()
@@ -345,7 +345,7 @@ func (t *RpcClient) GetFile(args *ArgClientGetFile, reply *ReplyClientGetFile) e
 			j += 1
 		}
 	}
-	if i < SDFS_REPLICA_QUORUM {
+	if i < SDFS_REPLICA_QUORUM_READ_SIZE {
 		reply.Flag = false
 		reply.ErrStr = "fail to read file from enough replicas (quorum)"
 	} else if maxVersion < 0 {
