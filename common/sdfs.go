@@ -43,7 +43,7 @@ type SDFSReplicaTransferTask struct {
 }
 
 const (
-	SDFS_MAX_BUFFER_SIZE = 4
+	SDFS_MAX_BUFFER_SIZE = 1024 * 1024
 
 	SDFS_REPLICA_NUM               = 4
 	SDFS_REPLICA_QUORUM_WRITE_SIZE = 4

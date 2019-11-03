@@ -205,7 +205,7 @@ func (t *RpcClient) UpdateFile(args *ArgClientUpdateFile, reply *ReplyClientUpda
 		go func(host HostInfo, c chan error) {
 			offset := 0
 			l := len(args.Content)
-			for offset < l {
+			for offset < l || deleteFlag {
 				end := offset + SDFS_MAX_BUFFER_SIZE
 				if end > l {
 					end = l
@@ -223,19 +223,28 @@ func (t *RpcClient) UpdateFile(args *ArgClientUpdateFile, reply *ReplyClientUpda
 
 				err := <-tk.Chan
 				if err == nil {
-					log.Printf("[Info] Send UpdateFile to replica %v (offset %v) success",
+					log.Printf("[Info] Send UpdateFile to replica %v (file %v, version %v, delete %v, offset %v) success",
 						host.Host,
+						filename,
+						version,
+						deleteFlag,
 						offset,
-						err,
 					)
 				} else {
-					log.Printf("[Error] Fail to send UpdateFile to replica %v (offset %v): %v",
+					log.Printf("[Error] Fail to send UpdateFile to replica %v (file %v, version %v, delete %v, offset %v): %v",
 						host.Host,
+						filename,
+						version,
+						deleteFlag,
 						offset,
 						err,
 					)
 					c <- err
 					return
+				}
+
+				if deleteFlag {
+					break
 				}
 
 				offset = end
