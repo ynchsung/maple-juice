@@ -60,6 +60,7 @@ type ArgUpdateFile struct {
 	DeleteFlag bool
 	Version    int
 	Length     int
+	Offset     int
 	Content    []byte
 }
 

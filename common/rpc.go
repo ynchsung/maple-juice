@@ -194,36 +194,68 @@ func (t *RpcClient) UpdateFile(args *ArgClientUpdateFile, reply *ReplyClientUpda
 	version := task.Reply.(*ReplyUpdateFileVersion).Version
 
 	// send PutFile request to all replicas
-	var tasks []*RpcAsyncCallerTask
 	cases := make([]reflect.SelectCase, len(replicaMap))
+	hostIndexMap := make(map[int]HostInfo)
 	i := 0
 	for _, mem := range replicaMap {
-		task := &RpcAsyncCallerTask{
-			"UpdateFile",
-			mem.Info,
-			&ArgUpdateFile{filename, deleteFlag, version, args.Length, args.Content},
-			new(ReplyUpdateFile),
-			make(chan error),
-		}
+		tmpChan := make(chan error)
+		cases[i] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(tmpChan)}
+		hostIndexMap[i] = mem.Info
 
-		go CallRpcS2SGeneral(task)
+		go func(host HostInfo, c chan error) {
+			offset := 0
+			l := len(args.Content)
+			for offset < l {
+				end := offset + SDFS_MAX_BUFFER_SIZE
+				if end > l {
+					end = l
+				}
 
-		cases[i] = reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(task.Chan)}
-		tasks = append(tasks, task)
+				tk := &RpcAsyncCallerTask{
+					"UpdateFile",
+					host,
+					&ArgUpdateFile{filename, deleteFlag, version, args.Length, offset, args.Content[offset:end]},
+					new(ReplyUpdateFile),
+					make(chan error),
+				}
+
+				go CallRpcS2SGeneral(tk)
+
+				err := <-tk.Chan
+				if err == nil {
+					log.Printf("[Info] Send UpdateFile to replica %v (offset %v) success",
+						host.Host,
+						offset,
+						err,
+					)
+				} else {
+					log.Printf("[Error] Fail to send UpdateFile to replica %v (offset %v): %v",
+						host.Host,
+						offset,
+						err,
+					)
+					c <- err
+					return
+				}
+
+				offset = end
+			}
+
+			c <- nil
+		}(mem.Info, tmpChan)
 		i += 1
 	}
 
 	// wait for quorum finish updating
 	i, j := 0, 0
-	for i < SDFS_REPLICA_QUORUM_WRITE_SIZE && j < len(tasks) {
+	for i < SDFS_REPLICA_QUORUM_WRITE_SIZE && j < len(replicaMap) {
 		chosen, value, _ := reflect.Select(cases)
-		if tasks[chosen] != nil {
-			tasks[chosen].Args.(*ArgUpdateFile).Content = nil
+		if hostInfo, ok := hostIndexMap[chosen]; ok {
 			errInt := value.Interface()
 			if errInt != nil {
 				log.Printf("[Error] Quorum update %v-th node (host %v, file %v, version %v, delete %v) error: %v",
 					j,
-					tasks[chosen].Info.Host,
+					hostInfo.Host,
 					filename,
 					version,
 					deleteFlag,
@@ -232,14 +264,14 @@ func (t *RpcClient) UpdateFile(args *ArgClientUpdateFile, reply *ReplyClientUpda
 			} else {
 				log.Printf("[Info] Quorum update %v-th node (host %v, file %v, version %v, delete %v) success",
 					j,
-					tasks[chosen].Info.Host,
+					hostInfo.Host,
 					filename,
 					version,
 					deleteFlag,
 				)
 				i += 1
 			}
-			tasks[chosen] = nil
+			delete(hostIndexMap, chosen)
 			j += 1
 		}
 	}
@@ -247,17 +279,6 @@ func (t *RpcClient) UpdateFile(args *ArgClientUpdateFile, reply *ReplyClientUpda
 		reply.Flag = false
 		reply.ErrStr = "fail to update file to enough replicas (quorum)"
 	}
-
-	// put not finishing task into queue to wait
-	for _, task := range tasks {
-		if task != nil {
-			RpcAsyncCallerTaskWaitQueueMux.Lock()
-			RpcAsyncCallerTaskWaitQueue = append(RpcAsyncCallerTaskWaitQueue, task)
-			RpcAsyncCallerTaskWaitQueueMux.Unlock()
-		}
-	}
-
-	args.Content = nil
 
 	return nil
 }
@@ -654,21 +675,26 @@ func (t *RpcS2S) UpdateFile(args *ArgUpdateFile, reply *ReplyUpdateFile) error {
 	reply.Flag = true
 	reply.ErrStr = ""
 
-	updated := SDFSUpdateFile(args.Filename, args.Version, args.DeleteFlag, args.Length, args.Content)
+	updated := SDFSUpdateFile(args.Filename, args.Version, args.DeleteFlag, args.Length, args.Offset, args.Content)
 
-	log.Printf("[Info] UpdateFile (SKIP %v): file %v, version %v, delete %v",
+	log.Printf("[Info] UpdateFile (SKIP %v): file %v, version %v, delete %v, file length %v, offset %v, trunk length %v",
 		!updated,
 		args.Filename,
 		args.Version,
 		args.DeleteFlag,
+		args.Length,
+		args.Offset,
+		len(args.Content),
 	)
-	fmt.Printf("UpdateFile (SKIP %v): file %v, version %v, delete %v\n",
+	fmt.Printf("UpdateFile (SKIP %v): file %v, version %v, delete %v, file length %v, offset %v, trunk length %v\n",
 		!updated,
 		args.Filename,
 		args.Version,
 		args.DeleteFlag,
+		args.Length,
+		args.Offset,
+		len(args.Content),
 	)
-	args.Content = nil
 
 	return nil
 }
