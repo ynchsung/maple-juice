@@ -704,16 +704,18 @@ func (t *RpcS2S) UpdateFile(args *ArgUpdateFile, reply *ReplyUpdateFile) error {
 		args.Offset,
 		len(args.Content),
 	)
-	fmt.Printf("UpdateFile (SKIP %v, FINISH %v): file %v, version %v, delete %v, file length %v, offset %v, trunk length %v\n",
-		!updated,
-		finish,
-		args.Filename,
-		args.Version,
-		args.DeleteFlag,
-		args.Length,
-		args.Offset,
-		len(args.Content),
-	)
+	/*
+		fmt.Printf("UpdateFile (SKIP %v, FINISH %v): file %v, version %v, delete %v, file length %v, offset %v, trunk length %v\n",
+			!updated,
+			finish,
+			args.Filename,
+			args.Version,
+			args.DeleteFlag,
+			args.Length,
+			args.Offset,
+			len(args.Content),
+		)
+	*/
 
 	return nil
 }
