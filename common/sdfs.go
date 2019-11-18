@@ -301,17 +301,17 @@ func SDFSDoReplicaTransferTasks(tasks []*SDFSReplicaTransferTask) {
 			)
 
 			task.FileInfo.Lock.RLock()
+			fn, df, v := task.FileInfo.Filename, task.FileInfo.DeleteFlag, task.FileInfo.Version
 			if !task.FileInfo.DeleteFlag {
 				content, err = ReadFile(task.FileInfo.StorePath)
-				if err != nil {
-					task.Chan <- err
-					return
-				}
-				length = len(content)
 			}
-
-			fn, df, v := task.FileInfo.Filename, task.FileInfo.DeleteFlag, task.FileInfo.Version
 			task.FileInfo.Lock.RUnlock()
+
+			if err != nil {
+				task.Chan <- err
+				return
+			}
+			length = len(content)
 
 			if df {
 				rpcTask := &RpcAsyncCallerTask{
