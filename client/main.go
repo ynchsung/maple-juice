@@ -245,7 +245,7 @@ func put_file(force bool) {
 
 	token := common.GenRandomString(16)
 
-	// prepare trunk argument
+	// prepare chunk argument
 	st := time.Now().UnixNano()
 	finish := false
 	offset := 0

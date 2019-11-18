@@ -177,6 +177,10 @@ func (t *RpcClient) UpdateFile(args *ArgClientUpdateFile, reply *ReplyClientUpda
 	requestToken := args.RequestToken
 
 	if args.Offset == 0 {
+		// if the request is the first chunk
+		// then it should request a new version # from the main replica
+		// and add the info (requestInfo) to RpcUpdateFileRequestMap
+		// in order to let other chunk's requests thread get this info
 		requestInfo := &UpdateFileRequest{
 			requestToken,
 			nil,
@@ -229,6 +233,9 @@ func (t *RpcClient) UpdateFile(args *ArgClientUpdateFile, reply *ReplyClientUpda
 		RpcUpdateFileRequestMapMux.Unlock()
 	}
 
+	// since every chunk's update request needs the version info
+	// we wait for requestInfo presenting in RpcUpdateFileRequestMap
+	// i.e. wait for the first chunk getting the new version #
 	requestInfo := (*UpdateFileRequest)(nil)
 	for {
 		RpcUpdateFileRequestMapMux.RLock()
@@ -245,6 +252,9 @@ func (t *RpcClient) UpdateFile(args *ArgClientUpdateFile, reply *ReplyClientUpda
 		time.Sleep(100 * time.Millisecond)
 	}
 
+	// if an error occurs
+	// it means the main replica fails to give a new version # to the first chunk
+	// abort update
 	if !requestInfo.Flag {
 		reply.Flag = requestInfo.Flag
 		reply.ErrStr = requestInfo.ErrStr
@@ -253,7 +263,7 @@ func (t *RpcClient) UpdateFile(args *ArgClientUpdateFile, reply *ReplyClientUpda
 		return nil
 	}
 
-	// forward trunk to replicas
+	// forward chunk to replicas
 	var tasks []*RpcAsyncCallerTask
 	for _, mem := range requestInfo.ReplicaMap {
 		task := &RpcAsyncCallerTask{
@@ -694,7 +704,7 @@ func (t *RpcS2S) UpdateFile(args *ArgUpdateFile, reply *ReplyUpdateFile) error {
 	updated, finish := SDFSUpdateFile(args.Filename, args.Version, args.DeleteFlag, args.Length, args.Offset, args.Content)
 	reply.Finish = finish
 
-	log.Printf("[Info] UpdateFile (SKIP %v, FINISH %v): file %v, version %v, delete %v, file length %v, offset %v, trunk length %v",
+	log.Printf("[Info] UpdateFile (SKIP %v, FINISH %v): file %v, version %v, delete %v, file length %v, offset %v, chunk length %v",
 		!updated,
 		finish,
 		args.Filename,
@@ -705,7 +715,7 @@ func (t *RpcS2S) UpdateFile(args *ArgUpdateFile, reply *ReplyUpdateFile) error {
 		len(args.Content),
 	)
 	/*
-		fmt.Printf("UpdateFile (SKIP %v, FINISH %v): file %v, version %v, delete %v, file length %v, offset %v, trunk length %v\n",
+		fmt.Printf("UpdateFile (SKIP %v, FINISH %v): file %v, version %v, delete %v, file length %v, offset %v, chunk length %v\n",
 			!updated,
 			finish,
 			args.Filename,

@@ -165,7 +165,7 @@ func SDFSUpdateFile(filename string, version int, deleteFlag bool, fileLength in
 		// current version is newer, no need to update
 		return false, true
 	} else if val.Version == version && (deleteFlag || fileLength == val.ReceivedByteCount) {
-		// current version is same as the trunk's version
+		// current version is same as the chunk's version
 		// and current version file has already been flushed or deleted
 		return false, true
 	}
@@ -189,7 +189,7 @@ func SDFSUpdateFile(filename string, version int, deleteFlag bool, fileLength in
 		}
 
 		if _, ok := val.OffsetBufferMap[offset]; ok {
-			// trunk has already been written, skip
+			// chunk has already been written, skip
 			return false, (fileLength == val.ReceivedByteCount)
 		}
 
@@ -326,6 +326,7 @@ func SDFSDoReplicaTransferTasks(tasks []*SDFSReplicaTransferTask) {
 		}(t)
 	}
 
+	// FIXME: no need to wait?
 	// Wait for all SDFSReplicaTransferTask
 	for _, task := range tasks {
 		err := <-task.Chan
@@ -355,50 +356,38 @@ func SDFSReplicaHostAdd(memberList []MemberInfo, addHost HostInfo) error {
 		k := val.Key
 		val.Lock.RUnlock()
 
-		flag := false
+		main_replica_idx := -1
 		for i, mem := range memberList {
 			if mem.Info.MachineID >= k {
-				// main replica == i
-				for j := 0; j < SDFS_REPLICA_NUM; j++ {
-					if addHost.MachineID == memberList[(i+j)%N].Info.MachineID {
-						task := &SDFSReplicaTransferTask{
-							addHost,
-							val,
-							make(chan error),
-						}
-						tasks = append(tasks, task)
-						break
-					}
-				}
-
-				// remove file from map if it was the original last replica
-				if memberList[(i+SDFS_REPLICA_NUM)%N].Info.MachineID == Cfg.Self.MachineID {
-					removeList = append(removeList, filename)
-				}
-
-				flag = true
+				// found main replica at index i
+				main_replica_idx = i
 				break
 			}
 		}
 
-		if !flag {
-			// main replica == 0
-			for j := 0; j < SDFS_REPLICA_NUM; j++ {
-				if addHost.MachineID == memberList[j%N].Info.MachineID {
-					task := &SDFSReplicaTransferTask{
-						addHost,
-						val,
-						make(chan error),
-					}
-					tasks = append(tasks, task)
-					break
-				}
-			}
+		if main_replica_idx < 0 {
+			// if not found, it means main replica is at index 0
+			main_replica_idx = 0
+		}
 
-			// remove file from map if it was the original last replica
-			if memberList[SDFS_REPLICA_NUM%N].Info.MachineID == Cfg.Self.MachineID {
-				removeList = append(removeList, filename)
+		// check if the file's new replica host set has changed
+		// i.e. new host becomes a replica node of this file
+		// if yes, then transfer file to the new host (addHost)
+		for j := 0; j < SDFS_REPLICA_NUM; j++ {
+			if addHost.MachineID == memberList[(main_replica_idx+j)%N].Info.MachineID {
+				task := &SDFSReplicaTransferTask{
+					addHost,
+					val,
+					make(chan error),
+				}
+				tasks = append(tasks, task)
+				break
 			}
+		}
+
+		// remove file from map if it was the original last replica
+		if memberList[(main_replica_idx+SDFS_REPLICA_NUM)%N].Info.MachineID == Cfg.Self.MachineID {
+			removeList = append(removeList, filename)
 		}
 	}
 
@@ -424,38 +413,32 @@ func SDFSReplicaHostDelete(memberList []MemberInfo, deleteHost HostInfo) error {
 		k := val.Key
 		val.Lock.RUnlock()
 
-		flag := false
+		main_replica_idx := -1
 		for i, mem := range memberList {
 			if mem.Info.MachineID >= k {
-				// main replica == i
-				for j := 0; j < SDFS_REPLICA_NUM; j++ {
-					if deleteHost.MachineID == memberList[(i+j)%N].Info.MachineID {
-						task := &SDFSReplicaTransferTask{
-							memberList[(i+SDFS_REPLICA_NUM)%N].Info,
-							val,
-							make(chan error),
-						}
-						tasks = append(tasks, task)
-						break
-					}
-				}
-				flag = true
+				// found main replica at index i
+				main_replica_idx = i
 				break
 			}
 		}
 
-		if !flag {
-			// main replica == 0
-			for j := 0; j < SDFS_REPLICA_NUM; j++ {
-				if deleteHost.MachineID == memberList[j%N].Info.MachineID {
-					task := &SDFSReplicaTransferTask{
-						memberList[SDFS_REPLICA_NUM%N].Info,
-						val,
-						make(chan error),
-					}
-					tasks = append(tasks, task)
-					break
+		if main_replica_idx < 0 {
+			// if not found, it means main replica is at index 0
+			main_replica_idx = 0
+		}
+
+		// check if the file's new replica host set has changed
+		// i.e. delete host was a replica node of this file
+		// if yes, then transfer file to the new replica
+		for j := 0; j < SDFS_REPLICA_NUM; j++ {
+			if deleteHost.MachineID == memberList[(main_replica_idx+j)%N].Info.MachineID {
+				task := &SDFSReplicaTransferTask{
+					memberList[(main_replica_idx+SDFS_REPLICA_NUM)%N].Info,
+					val,
+					make(chan error),
 				}
+				tasks = append(tasks, task)
+				break
 			}
 		}
 	}
