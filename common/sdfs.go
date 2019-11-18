@@ -310,18 +310,46 @@ func SDFSDoReplicaTransferTasks(tasks []*SDFSReplicaTransferTask) {
 				length = len(content)
 			}
 
-			rpcTask := &RpcAsyncCallerTask{
-				"UpdateFile",
-				task.Target,
-				&ArgUpdateFile{task.FileInfo.Filename, task.FileInfo.DeleteFlag, task.FileInfo.Version, length, 0, content},
-				new(ReplyUpdateFile),
-				make(chan error),
-			}
+			fn, df, v := task.FileInfo.Filename, task.FileInfo.DeleteFlag, task.FileInfo.Version
 			task.FileInfo.Lock.RUnlock()
 
-			go CallRpcS2SGeneral(rpcTask)
+			if df {
+				rpcTask := &RpcAsyncCallerTask{
+					"UpdateFile",
+					task.Target,
+					&ArgUpdateFile{fn, df, v, length, 0, content},
+					new(ReplyUpdateFile),
+					make(chan error),
+				}
+				go CallRpcS2SGeneral(rpcTask)
+				err = <-rpcTask.Chan
+			} else {
+				offset := 0
+				for offset < length {
+					end := offset + SDFS_MAX_BUFFER_SIZE
+					if end > length {
+						end = length
+					}
 
-			err = <-rpcTask.Chan
+					rpcTask := &RpcAsyncCallerTask{
+						"UpdateFile",
+						task.Target,
+						&ArgUpdateFile{fn, df, v, length, offset, content[offset:end]},
+						new(ReplyUpdateFile),
+						make(chan error),
+					}
+
+					go CallRpcS2SGeneral(rpcTask)
+
+					err = <-rpcTask.Chan
+					if err != nil {
+						break
+					}
+
+					offset = end
+				}
+			}
+
 			task.Chan <- err
 		}(t)
 	}
