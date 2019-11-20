@@ -427,7 +427,7 @@ func store() {
 	}
 
 	var (
-		args  common.ArgClientListFilesByHost = common.ArgClientListFilesByHost{id}
+		args  common.ArgClientListFilesByHost = common.ArgClientListFilesByHost{id, ""}
 		reply common.ReplyClientListFilesByHost
 	)
 

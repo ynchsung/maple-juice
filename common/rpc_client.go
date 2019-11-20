@@ -462,7 +462,7 @@ func (t *RpcClient) ListFilesByHost(args *ArgClientListFilesByHost, reply *Reply
 			reply.Flag = true
 			reply.ErrStr = ""
 
-			args2 := ArgListFile(1)
+			args2 := ArgListFile(args.Regex)
 
 			task := &RpcAsyncCallerTask{
 				"ListFile",

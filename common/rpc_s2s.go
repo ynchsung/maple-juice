@@ -283,7 +283,12 @@ func (t *RpcS2S) ExistFile(args *ArgExistFile, reply *ReplyExistFile) error {
 }
 
 func (t *RpcS2S) ListFile(args *ArgListFile, reply *ReplyListFile) error {
-	*reply = ReplyListFile(SDFSListFile())
+	regex := string(*args)
+	if len(regex) == 0 {
+		*reply = ReplyListFile(SDFSListFile())
+	} else {
+		*reply = ReplyListFile(SDFSListFileByRegex(regex))
+	}
 
 	return nil
 }

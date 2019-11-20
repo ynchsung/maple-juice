@@ -39,6 +39,7 @@ type ArgClientListHostsByFile struct {
 
 type ArgClientListFilesByHost struct {
 	MachineID int
+	Regex     string
 }
 
 type ArgMemberJoin HostInfo
@@ -74,4 +75,4 @@ type ArgExistFile struct {
 	Filename string
 }
 
-type ArgListFile int
+type ArgListFile string

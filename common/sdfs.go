@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"sync"
 	"time"
@@ -269,6 +270,24 @@ func SDFSListFile() []SDFSFileInfo2 {
 	for _, file := range SDFSFileInfoMap {
 		file.Lock.RLock()
 		ret = append(ret, SDFSFileInfo2{file.Filename, file.Key, file.Version, file.DeleteFlag})
+		file.Lock.RUnlock()
+	}
+
+	return ret
+}
+
+func SDFSListFileByRegex(str string) []SDFSFileInfo2 {
+	re := regexp.MustCompile(str)
+
+	SDFSFileInfoMapMux.RLock()
+	defer SDFSFileInfoMapMux.RUnlock()
+
+	ret := make([]SDFSFileInfo2, 0)
+	for _, file := range SDFSFileInfoMap {
+		file.Lock.RLock()
+		if re.MatchString(file.Filename) {
+			ret = append(ret, SDFSFileInfo2{file.Filename, file.Key, file.Version, file.DeleteFlag})
+		}
 		file.Lock.RUnlock()
 	}
 
