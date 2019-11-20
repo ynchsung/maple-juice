@@ -101,3 +101,14 @@ type ReplyGetFile struct {
 type ReplyExistFile bool
 
 type ReplyListFile []SDFSFileInfo2
+
+// Map Reduce
+type ReplyMapTaskStart struct {
+	Flag   bool
+	ErrStr string
+}
+
+type ReplyMapTaskDispatch struct {
+	Flag   bool
+	ErrStr string
+}

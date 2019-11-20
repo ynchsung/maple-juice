@@ -3,10 +3,22 @@ package common
 import (
 	"fmt"
 	"log"
+	"sync"
 )
 
 type RpcS2S struct {
 }
+
+type MapMasterInfo struct {
+	IsMaster        bool
+	DispatchFileMap map[string][]string
+	Counter         map[string]int
+	Lock            sync.RWMutex
+}
+
+var (
+	masterInfo MapMasterInfo = MapMasterInfo{false, make(map[string][]string), make(map[string]int), sync.RWMutex{}}
+)
 
 //////////////////////////////////////////////
 // RPC S2S
@@ -290,5 +302,116 @@ func (t *RpcS2S) ListFile(args *ArgListFile, reply *ReplyListFile) error {
 		*reply = ReplyListFile(SDFSListFileByRegex(regex))
 	}
 
+	return nil
+}
+
+// MP4: Map Reduce
+func (t *RpcS2S) MapTaskStart(args *ArgMapTaskStart, reply *ReplyMapTaskStart) error {
+	/*
+	 * when receive this rpc
+	 * it means I am master node
+	 */
+	members := GetMemberList()
+
+	// TODO: check args.ExecFilename exists on the cluster
+
+	/*
+	 * =======================================================================
+	 * step 1: get all input files with prefix args.InputFilenamePrefix
+	 * =======================================================================
+	 */
+	inputFiles := make(map[string]int)
+	tasks := make([]*RpcAsyncCallerTask, 0)
+	args2 := ArgListFile("^" + args.InputFilenamePrefix)
+	for _, mem := range members {
+		task := &RpcAsyncCallerTask{
+			"ListFile",
+			mem.Info,
+			&args2,
+			new(ReplyListFile),
+			make(chan error),
+		}
+
+		go CallRpcS2SGeneral(task)
+
+		tasks = append(tasks, task)
+	}
+
+	// Wait for all RpcAsyncCallerTask
+	for _, task := range tasks {
+		err := <-task.Chan
+		// if error then skip
+		if err == nil {
+			for _, file := range []SDFSFileInfo2(*(task.Reply.(*ReplyListFile))) {
+				inputFiles[file.Filename] = 1
+			}
+		}
+	}
+
+	/*
+	 * =======================================================================
+	 * step 2: dispatch map task (input files) to all workers
+	 * =======================================================================
+	 */
+	masterInfo.Lock.Lock()
+	masterInfo.IsMaster = true
+	type MapMasterInfo struct {
+		IsMaster        bool
+		DispatchFileMap map[string][]string
+		Counter         map[string]int
+		Lock            sync.RWMutex
+	}
+
+	// refresh memberlist in order to prevent race condition
+	members = GetMemberList()
+
+	workerNum := args.MachineNum - 1
+	workers := make([]MemberInfo, workerNum)
+	cnt := 0
+	for _, mem := range members {
+		if mem.Info.Host == Cfg.Self.Host {
+			continue
+		}
+		masterInfo.DispatchFileMap[mem.Info.Host] = make([]string, 0)
+		masterInfo.Counter[mem.Info.Host] = 0
+		workers[cnt] = mem
+		cnt += 1
+	}
+
+	// round robin dispatch
+	cnt = 0
+	for filename, _ := range inputFiles {
+		masterInfo.DispatchFileMap[workers[cnt].Info.Host] = append(masterInfo.DispatchFileMap[workers[cnt].Info.Host], filename)
+		cnt = (cnt + 1) % workerNum
+	}
+	masterInfo.Lock.Unlock()
+
+	tasks = make([]*RpcAsyncCallerTask, 0)
+	for _, worker := range workers {
+		for _, filename := range masterInfo.DispatchFileMap[worker.Info.Host] {
+			task := &RpcAsyncCallerTask{
+				"MapTaskDispatch",
+				worker.Info,
+				&ArgMapTaskDispatch{args.ExecFilename, filename, Cfg.Self},
+				new(ReplyMapTaskDispatch),
+				make(chan error),
+			}
+
+			go CallRpcS2SGeneral(task)
+
+			tasks = append(tasks, task)
+		}
+	}
+
+	// Wait for all RpcAsyncCallerTask
+	for _, task := range tasks {
+		<-task.Chan
+	}
+
+	/*
+	 * =======================================================================
+	 * step 3: Wait for counter, send write intermediate file command
+	 * =======================================================================
+	 */
 	return nil
 }

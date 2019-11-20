@@ -254,3 +254,17 @@ func GetReplicasByKey(key int) (MemberInfo, map[string]MemberInfo) {
 	}
 	return MemberList[0], replicaMap
 }
+
+// MP4: Map Reduce
+// return master node, # of node
+// assume master node will not fail
+func GetMapReduceMaster() (MemberInfo, int) {
+	MemberListMux.Lock()
+	defer MemberListMux.Unlock()
+
+	N := len(MemberList)
+	if N == 0 {
+		return MemberInfo{}, 0
+	}
+	return MemberList[0], N
+}

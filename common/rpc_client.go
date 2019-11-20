@@ -491,3 +491,30 @@ func (t *RpcClient) ListFilesByHost(args *ArgClientListFilesByHost, reply *Reply
 
 	return nil
 }
+
+// MP4: Map Reduce
+func (t *RpcClient) MapTaskStart(args *ArgMapTaskStart, reply *ReplyMapTaskStart) error {
+	master, N := GetMapReduceMaster()
+	if N < args.MachineNum {
+		reply.Flag = false
+		reply.ErrStr = "Not enough node in cluster"
+		return nil
+	}
+
+	task := &RpcAsyncCallerTask{
+		"MapTaskStart",
+		master.Info,
+		args,
+		reply,
+		make(chan error),
+	}
+
+	go CallRpcS2SGeneral(task)
+
+	err := <-task.Chan
+	if err != nil {
+		log.Printf("[Error] fail to start map task on master node (%v): %v", master.Info.Host, err)
+	}
+
+	return nil
+}

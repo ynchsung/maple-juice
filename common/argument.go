@@ -76,3 +76,17 @@ type ArgExistFile struct {
 }
 
 type ArgListFile string
+
+// Map Reduce
+type ArgMapTaskStart struct {
+	ExecFilename               string
+	MachineNum                 int
+	IntermediateFilenamePrefix string
+	InputFilenamePrefix        string
+}
+
+type ArgMapTaskDispatch struct {
+	ExecFilename  string
+	InputFilename string
+	MasterHost    HostInfo
+}
