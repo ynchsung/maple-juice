@@ -72,22 +72,29 @@ func SDFSHash(filename string) int {
 	return int(h.Sum32() % M)
 }
 
-func SDFSGenerateStorePath(filename string) string {
-	const (
-		l            string = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-		STORE_LENGTH int    = 10
-	)
+func SDFSHash2(filename string, M uint32) int {
+	h := fnv.New32a()
+	h.Write([]byte(filename))
+	return int(h.Sum32() % M)
+}
 
+func SDFSGenerateRandomFilename(length int) string {
+	const (
+		l string = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	)
+	ret := make([]byte, length)
+	for i := 0; i < length; i++ {
+		ret[i] = l[SDFSRandomGenerator.Intn(len(l))]
+	}
+	return string(ret)
+}
+
+func SDFSGenerateStorePath(filename string) string {
 	SDFSStorePathMapMux.Lock()
 	defer SDFSStorePathMapMux.Unlock()
 
 	for {
-		store := make([]byte, STORE_LENGTH)
-		for i := 0; i < STORE_LENGTH; i++ {
-			store[i] = l[SDFSRandomGenerator.Intn(len(l))]
-		}
-
-		storeStr := filepath.Join(Cfg.SDFSDir, string(store))
+		storeStr := filepath.Join(Cfg.SDFSDir, SDFSGenerateRandomFilename(10))
 		if _, ok := SDFSStorePathMap[storeStr]; !ok {
 			SDFSStorePathMap[storeStr] = filename
 			return storeStr

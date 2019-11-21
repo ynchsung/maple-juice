@@ -85,8 +85,25 @@ type ArgMapTaskStart struct {
 	InputFilenamePrefix        string
 }
 
-type ArgMapTaskDispatch struct {
-	ExecFilename  string
-	InputFilename string
-	MasterHost    HostInfo
+type ArgMapTaskPrepareWorker struct {
+	ExecFilename string
+	MasterHost   HostInfo
+	WorkerList   []MemberInfo
+	WorkerNum    int
 }
+
+type ArgMapTaskDispatch struct {
+	InputFilename string
+}
+
+type ArgMapTaskSendKeyValues struct {
+	Data []MapReduceKeyValue
+}
+
+type ArgMapTaskWriteIntermediateFile struct {
+}
+
+type ArgMapTaskNotifyMaster struct {
+}
+
+type ArgMapTaskFinish int

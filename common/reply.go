@@ -108,7 +108,32 @@ type ReplyMapTaskStart struct {
 	ErrStr string
 }
 
+type ReplyMapTaskPrepareWorker struct {
+	Flag   bool
+	ErrStr string
+}
+
 type ReplyMapTaskDispatch struct {
+	Flag   bool
+	ErrStr string
+}
+
+type ReplyMapTaskSendKeyValues struct {
+	Flag   bool
+	ErrStr error
+}
+
+type ReplyMapTaskWriteIntermediateFile struct {
+	Flag   bool
+	ErrStr string
+}
+
+type ReplyMapTaskNotifyMaster struct {
+	Flag   bool
+	ErrStr string
+}
+
+type ReplyMapTaskFinish struct {
 	Flag   bool
 	ErrStr string
 }
