@@ -364,13 +364,15 @@ func (t *RpcS2S) MapTaskStart(args *ArgMapTaskStart, reply *ReplyMapTaskStart) e
 			continue
 		}
 		masterInfo.DispatchFileMap[mem.Info.Host] = make([]string, 0)
-		masterInfo.Counter[mem.Info.Host] = 0
+		masterInfo.FinishFileCounter[mem.Info.Host] = 0
+		masterInfo.IntermediateDoneCounter[mem.Info.Host] = 0
 		masterInfo.WorkerList[cnt] = mem
 		cnt += 1
 		if cnt >= workerNum {
 			break
 		}
 	}
+	masterInfo.IntermediateDoneNotifyToken = ""
 
 	sendWorker := make([]MemberInfo, workerNum)
 	copy(sendWorker, masterInfo.WorkerList)
@@ -381,7 +383,7 @@ func (t *RpcS2S) MapTaskStart(args *ArgMapTaskStart, reply *ReplyMapTaskStart) e
 		task := &RpcAsyncCallerTask{
 			"MapTaskPrepareWorker",
 			worker.Info,
-			&ArgMapTaskPrepareWorker{args.ExecFilename, Cfg.Self, sendWorker, workerNum},
+			&ArgMapTaskPrepareWorker{args.ExecFilename, Cfg.Self, sendWorker, workerNum, args.IntermediateFilenamePrefix},
 			new(ReplyMapTaskPrepareWorker),
 			make(chan error),
 		}
@@ -438,106 +440,85 @@ func (t *RpcS2S) MapTaskStart(args *ArgMapTaskStart, reply *ReplyMapTaskStart) e
 		<-task.Chan
 	}
 
-	/*
-	 * =======================================================================
-	 * step 3: Wait for counter, i.e. wait for worker finish all map tasks
-	 * =======================================================================
-	 */
 	for {
+		tasks = make([]*RpcAsyncCallerTask, 0)
+		finishFlag := false
+
 		masterInfo.Lock.Lock()
-		flag := true
-		for key, value := range masterInfo.Counter {
-			if value != len(masterInfo.DispatchFileMap[key]) {
-				flag = false
-				break
+		if masterInfo.State == MASTER_STATE_WAIT_FOR_MAP_TASK {
+			// check finish file counter
+			flag := true
+			for key, value := range masterInfo.FinishFileCounter {
+				if value != len(masterInfo.DispatchFileMap[key]) {
+					flag = false
+					break
+				}
 			}
-		}
-		if flag {
-			masterInfo.State = MASTER_STATE_WAIT_FOR_INTERMEDIATE_FILE
-		}
-		masterInfo.Lock.Unlock()
-
-		if flag {
-			break
-		}
-		time.Sleep(1 * time.Second)
-	}
-
-	/*
-	 * =======================================================================
-	 * step 4: send write intermediate file command
-	 * =======================================================================
-	 */
-	masterInfo.Lock.Lock()
-	tasks = make([]*RpcAsyncCallerTask, 0)
-	for _, worker := range masterInfo.WorkerList {
-		masterInfo.Counter[worker.Info.Host] = 0
-		task := &RpcAsyncCallerTask{
-			"MapTaskWriteIntermediateFile",
-			worker.Info,
-			&ArgMapTaskWriteIntermediateFile{},     // TODO
-			new(ReplyMapTaskWriteIntermediateFile), // TODO
-			make(chan error),
-		}
-
-		go CallRpcS2SGeneral(task)
-
-		tasks = append(tasks, task)
-	}
-	masterInfo.State = MASTER_STATE_WAIT_FOR_INTERMEDIATE_FILE
-	masterInfo.Lock.Unlock()
-
-	// Wait for all RpcAsyncCallerTask
-	for _, task := range tasks {
-		<-task.Chan
-	}
-
-	/*
-	 * =======================================================================
-	 * step 5: Wait for counter
-	 * i.e. wait for worker finish writing intermediate files
-	 * =======================================================================
-	 */
-	for {
-		masterInfo.Lock.Lock()
-		flag := true
-		for _, value := range masterInfo.Counter {
-			if value != 1 {
-				flag = false
-				break
-			}
-		}
-		if flag {
-			masterInfo.State = MASTER_STATE_MAP_TASK_DONE
-
-			// send MapTaskFinish
-			tasks = make([]*RpcAsyncCallerTask, 0)
-			argTmp := ArgMapTaskFinish(1)
-			for _, worker := range masterInfo.WorkerList {
-				task := &RpcAsyncCallerTask{
-					"MapTaskFinish",
-					worker.Info,
-					&argTmp,                 // TODO
-					new(ReplyMapTaskFinish), // TODO
-					make(chan error),
+			if flag {
+				masterInfo.State = MASTER_STATE_WAIT_FOR_INTERMEDIATE_FILE
+				masterInfo.IntermediateDoneNotifyToken = GenRandomString(16)
+				for key, _ := range masterInfo.IntermediateDoneCounter {
+					masterInfo.IntermediateDoneCounter[key] = 0
 				}
 
-				go CallRpcS2SGeneral(task)
+				// send write intermediate file command with new token
+				for _, worker := range masterInfo.WorkerList {
+					masterInfo.IntermediateDoneCounter[worker.Info.Host] = 0
+					task := &RpcAsyncCallerTask{
+						"MapTaskWriteIntermediateFile",
+						worker.Info,
+						&ArgMapTaskWriteIntermediateFile{masterInfo.IntermediateDoneNotifyToken},
+						new(ReplyMapTaskWriteIntermediateFile),
+						make(chan error),
+					}
 
-				tasks = append(tasks, task)
+					go CallRpcS2SGeneral(task)
+
+					tasks = append(tasks, task)
+				}
+			}
+		} else {
+			// check intermediate done counter
+			flag := true
+			for _, value := range masterInfo.IntermediateDoneCounter {
+				if value != 1 {
+					flag = false
+					break
+				}
+			}
+			if flag {
+				finishFlag = true
+				masterInfo.State = MASTER_STATE_MAP_TASK_DONE
+
+				// send MapTaskFinish
+				argTmp := ArgMapTaskFinish(1)
+				for _, worker := range masterInfo.WorkerList {
+					task := &RpcAsyncCallerTask{
+						"MapTaskFinish",
+						worker.Info,
+						&argTmp,
+						new(ReplyMapTaskFinish),
+						make(chan error),
+					}
+
+					go CallRpcS2SGeneral(task)
+
+					tasks = append(tasks, task)
+				}
 			}
 		}
 		masterInfo.Lock.Unlock()
 
-		if flag {
+		// Wait for all RpcAsyncCallerTask
+		for _, task := range tasks {
+			<-task.Chan
+		}
+
+		if finishFlag {
 			break
 		}
-		time.Sleep(1 * time.Second)
-	}
 
-	// Wait for all RpcAsyncCallerTask
-	for _, task := range tasks {
-		<-task.Chan
+		time.Sleep(1 * time.Second)
 	}
 
 	reply.Flag = true
@@ -561,6 +542,7 @@ func (t *RpcS2S) MapTaskPrepareWorker(args *ArgMapTaskPrepareWorker, reply *Repl
 	workerInfo.Lock.Lock()
 
 	workerInfo.ExecFilePath = storeStr
+	workerInfo.IntermediateFilenamePrefix = args.IntermediateFilenamePrefix
 	workerInfo.MasterHost = args.MasterHost
 	workerInfo.WorkerNum = args.WorkerNum
 	workerInfo.WorkerList = args.WorkerList
@@ -572,6 +554,8 @@ func (t *RpcS2S) MapTaskPrepareWorker(args *ArgMapTaskPrepareWorker, reply *Repl
 		workerInfo.KeyValueSent[worker.Info.Host] = make([]MapReduceKeyValue, 0)
 	}
 
+	workerInfo.WrittenKey = make(map[string]int)
+
 	workerInfo.Lock.Unlock()
 
 	reply.Flag = true
@@ -581,6 +565,86 @@ func (t *RpcS2S) MapTaskPrepareWorker(args *ArgMapTaskPrepareWorker, reply *Repl
 
 func (t *RpcS2S) MapTaskDispatch(args *ArgMapTaskDispatch, reply *ReplyMapTaskDispatch) error {
 	go MapTask(args.InputFilename)
+
+	reply.Flag = true
+	reply.ErrStr = ""
+
+	return nil
+}
+
+func (t *RpcS2S) MapTaskSendKeyValues(args *ArgMapTaskSendKeyValues, reply *ReplyMapTaskSendKeyValues) error {
+	workerInfo.Lock.Lock()
+	if _, ok := workerInfo.KeyValueReceived[args.Sender.Host]; !ok {
+		reply.Flag = false
+		reply.ErrStr = "not in worker list"
+		log.Printf("[Warn][Map-worker] worker %v is not in worker list", args.Sender.Host)
+	} else {
+		reply.Flag = true
+		reply.ErrStr = ""
+
+		workerInfo.KeyValueReceived[args.Sender.Host] = append(workerInfo.KeyValueReceived[args.Sender.Host], args.Data...)
+	}
+	workerInfo.Lock.Unlock()
+
+	return nil
+}
+
+func (t *RpcS2S) MapTaskWriteIntermediateFile(args *ArgMapTaskWriteIntermediateFile, reply *ReplyMapTaskWriteIntermediateFile) error {
+	go MapTaskWriteIntermediateFiles(args.RequestToken)
+
+	reply.Flag = true
+	reply.ErrStr = ""
+
+	return nil
+}
+
+func (t *RpcS2S) MapTaskNotifyMaster(args *ArgMapTaskNotifyMaster, reply *ReplyMapTaskNotifyMaster) error {
+	reply.Flag = true
+	reply.ErrStr = ""
+
+	if args.Type == NOTIFY_TYPE_FINISH_MAP_TASK {
+		masterInfo.Lock.Lock()
+		if _, ok := masterInfo.FinishFileCounter[args.Sender.Host]; ok {
+			masterInfo.FinishFileCounter[args.Sender.Host] += 1
+		} else {
+			log.Printf("[Warn][Map-master] ignore non-worker finish map task notification (%v)", args.Sender.Host)
+		}
+		masterInfo.Lock.Unlock()
+	} else if args.Type == NOTIFY_TYPE_FINISH_INTERMEDIATE_FILE {
+		masterInfo.Lock.Lock()
+		if masterInfo.IntermediateDoneNotifyToken != args.Token {
+			log.Printf("[Warn][Map-master] ignore out-of-date intermediate file notification (%v, %v)", args.Sender.Host, args.Token)
+		} else {
+			if _, ok := masterInfo.IntermediateDoneCounter[args.Sender.Host]; ok {
+				masterInfo.IntermediateDoneCounter[args.Sender.Host] = 1
+			} else {
+				log.Printf("[Warn][Map-master] ignore non-worker intermediate file notification (%v, %v)", args.Sender.Host, args.Token)
+			}
+		}
+		masterInfo.Lock.Unlock()
+	} else {
+		log.Printf("[Warn][Map-master] invalid notify type %v from %v", args.Type, args.Sender.Host)
+		reply.Flag = false
+		reply.ErrStr = "invalid type"
+	}
+
+	return nil
+}
+
+func (t *RpcS2S) MapTaskFinish(args *ArgMapTaskFinish, reply *ReplyMapTaskFinish) error {
+	workerInfo.Lock.Lock()
+
+	workerInfo.State = -1
+	workerInfo.ExecFilePath = ""
+	workerInfo.IntermediateFilenamePrefix = ""
+	workerInfo.MasterHost = HostInfo{}
+	workerInfo.WorkerNum = 0
+	workerInfo.WorkerList = make([]MemberInfo, 0)
+	workerInfo.KeyValueReceived = make(map[string][]MapReduceKeyValue)
+	workerInfo.KeyValueSent = make(map[string][]MapReduceKeyValue)
+	workerInfo.WrittenKey = make(map[string]int)
+
+	workerInfo.Lock.Unlock()
 
 	reply.Flag = true
 	reply.ErrStr = ""

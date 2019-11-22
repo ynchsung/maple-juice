@@ -86,10 +86,11 @@ type ArgMapTaskStart struct {
 }
 
 type ArgMapTaskPrepareWorker struct {
-	ExecFilename string
-	MasterHost   HostInfo
-	WorkerList   []MemberInfo
-	WorkerNum    int
+	ExecFilename               string
+	MasterHost                 HostInfo
+	WorkerList                 []MemberInfo
+	WorkerNum                  int
+	IntermediateFilenamePrefix string
 }
 
 type ArgMapTaskDispatch struct {
@@ -97,13 +98,18 @@ type ArgMapTaskDispatch struct {
 }
 
 type ArgMapTaskSendKeyValues struct {
-	Data []MapReduceKeyValue
+	Sender HostInfo
+	Data   []MapReduceKeyValue
 }
 
 type ArgMapTaskWriteIntermediateFile struct {
+	RequestToken string
 }
 
 type ArgMapTaskNotifyMaster struct {
+	Sender HostInfo
+	Type   int
+	Token  string
 }
 
 type ArgMapTaskFinish int

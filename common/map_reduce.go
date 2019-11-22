@@ -14,22 +14,26 @@ type MapReduceKeyValue struct {
 }
 
 type MapMasterInfo struct {
-	State           int
-	WorkerList      []MemberInfo
-	DispatchFileMap map[string][]string
-	Counter         map[string]int
-	Lock            sync.RWMutex
+	State                       int
+	WorkerList                  []MemberInfo
+	DispatchFileMap             map[string][]string
+	FinishFileCounter           map[string]int
+	IntermediateDoneNotifyToken string
+	IntermediateDoneCounter     map[string]int
+	Lock                        sync.RWMutex
 }
 
 type MapWorkerInfo struct {
-	State            int
-	ExecFilePath     string
-	MasterHost       HostInfo
-	WorkerNum        int
-	WorkerList       []MemberInfo
-	KeyValueReceived map[string][]MapReduceKeyValue
-	KeyValueSent     map[string][]MapReduceKeyValue
-	Lock             sync.RWMutex
+	State                      int
+	ExecFilePath               string
+	IntermediateFilenamePrefix string
+	MasterHost                 HostInfo
+	WorkerNum                  int
+	WorkerList                 []MemberInfo
+	KeyValueReceived           map[string][]MapReduceKeyValue
+	KeyValueSent               map[string][]MapReduceKeyValue
+	WrittenKey                 map[string]int
+	Lock                       sync.RWMutex
 }
 
 const (
@@ -40,22 +44,31 @@ const (
 	MASTER_STATE_MAP_TASK_DONE              = 4
 )
 
+const (
+	NOTIFY_TYPE_FINISH_MAP_TASK          = 0
+	NOTIFY_TYPE_FINISH_INTERMEDIATE_FILE = 1
+)
+
 var (
 	masterInfo MapMasterInfo = MapMasterInfo{
 		MASTER_STATE_NONE,
 		make([]MemberInfo, 0),
 		make(map[string][]string),
 		make(map[string]int),
+		"",
+		make(map[string]int),
 		sync.RWMutex{},
 	}
 	workerInfo MapWorkerInfo = MapWorkerInfo{
 		-1,
+		"",
 		"",
 		HostInfo{},
 		0,
 		make([]MemberInfo, 0),
 		make(map[string][]MapReduceKeyValue),
 		make(map[string][]MapReduceKeyValue),
+		make(map[string]int),
 		sync.RWMutex{},
 	}
 )
@@ -128,8 +141,8 @@ func MapTask(filename string) {
 		task := &RpcAsyncCallerTask{
 			"MapTaskSendKeyValues",
 			worker.Info,
-			&ArgMapTaskSendKeyValues{sendTmp}, // TODO
-			new(ReplyMapTaskSendKeyValues),    // TODO
+			&ArgMapTaskSendKeyValues{Cfg.Self, sendTmp},
+			new(ReplyMapTaskSendKeyValues),
 			make(chan error),
 		}
 
@@ -148,8 +161,8 @@ func MapTask(filename string) {
 	task := &RpcAsyncCallerTask{
 		"MapTaskSendKeyValues",
 		worker.Info,
-		&ArgMapTaskSendKeyValues{sendTmp}, // TODO
-		new(ReplyMapTaskSendKeyValues),    // TODO
+		&ArgMapTaskSendKeyValues{Cfg.Self, sendTmp},
+		new(ReplyMapTaskSendKeyValues),
 		make(chan error),
 	}
 
@@ -168,14 +181,77 @@ func MapTask(filename string) {
 	task = &RpcAsyncCallerTask{
 		"MapTaskNotifyMaster",
 		master,
-		&ArgMapTaskNotifyMaster{},     // TODO
-		new(ReplyMapTaskNotifyMaster), // TODO
+		&ArgMapTaskNotifyMaster{Cfg.Self, NOTIFY_TYPE_FINISH_MAP_TASK, ""},
+		new(ReplyMapTaskNotifyMaster),
 		make(chan error),
 	}
 
 	go CallRpcS2SGeneral(task)
 
 	err = <-task.Chan
+	if err != nil {
+		log.Printf("[Error][Map-worker] cannot notify master: %v", err)
+	}
+}
+
+func MapTaskWriteIntermediateFiles(token string) {
+	bucket := make(map[string][]MapReduceKeyValue)
+
+	workerInfo.Lock.Lock()
+
+	for _, list := range workerInfo.KeyValueReceived {
+		for _, obj := range list {
+			if _, ok := workerInfo.WrittenKey[obj.Key]; !ok {
+				if _, ok2 := bucket[obj.Key]; !ok2 {
+					bucket[obj.Key] = make([]MapReduceKeyValue, 0)
+				}
+				bucket[obj.Key] = append(bucket[obj.Key], obj)
+			}
+		}
+	}
+
+	for key, _ := range bucket {
+		workerInfo.WrittenKey[key] = 1
+	}
+
+	prefix := workerInfo.IntermediateFilenamePrefix
+	master := workerInfo.MasterHost
+
+	workerInfo.Lock.Unlock()
+
+	chans := make([]chan error, 0)
+	for k, l := range bucket {
+		c := make(chan error)
+		chans = append(chans, c)
+
+		go func(ch chan error, key string, list []MapReduceKeyValue) {
+			filename := prefix + "_" + key
+			content, _ := json.Marshal(list)
+			err := SDFSUploadFile(filename, Cfg.Self, content)
+			if err != nil {
+				log.Printf("[Error][Map-worker] cannot write intermediate file %v: %v", filename, err)
+			}
+
+			ch <- nil
+		}(c, k, l)
+	}
+
+	for _, c := range chans {
+		<-c
+	}
+
+	// send MapTaskNotifyMaster
+	task := &RpcAsyncCallerTask{
+		"MapTaskNotifyMaster",
+		master,
+		&ArgMapTaskNotifyMaster{Cfg.Self, NOTIFY_TYPE_FINISH_INTERMEDIATE_FILE, token},
+		new(ReplyMapTaskNotifyMaster),
+		make(chan error),
+	}
+
+	go CallRpcS2SGeneral(task)
+
+	err := <-task.Chan
 	if err != nil {
 		log.Printf("[Error][Map-worker] cannot notify master: %v", err)
 	}

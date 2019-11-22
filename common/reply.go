@@ -120,7 +120,7 @@ type ReplyMapTaskDispatch struct {
 
 type ReplyMapTaskSendKeyValues struct {
 	Flag   bool
-	ErrStr error
+	ErrStr string
 }
 
 type ReplyMapTaskWriteIntermediateFile struct {
