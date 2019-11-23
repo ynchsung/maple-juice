@@ -217,6 +217,7 @@ func MapTaskWriteIntermediateFiles() {
 
 		workerInfo.Lock.Lock()
 		if len(workerInfo.IntermediateFileWriteRequestView) == len(workerInfo.WorkerList) {
+			flag = true
 			for i := 0; i < len(workerInfo.IntermediateFileWriteRequestView); i++ {
 				if workerInfo.IntermediateFileWriteRequestView[i].Info.Host != workerInfo.WorkerList[i].Info.Host {
 					flag = false
