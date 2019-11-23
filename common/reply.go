@@ -123,6 +123,12 @@ type ReplyMapTaskSendKeyValues struct {
 	ErrStr string
 }
 
+type ReplyMapTaskGetKeyValues struct {
+	Flag   bool
+	ErrStr string
+	Data   map[string][]MapReduceKeyValue
+}
+
 type ReplyMapTaskWriteIntermediateFile struct {
 	Flag   bool
 	ErrStr string

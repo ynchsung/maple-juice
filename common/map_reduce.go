@@ -14,10 +14,15 @@ type MapReduceKeyValue struct {
 	Value string `json:"value"`
 }
 
+type WorkerInfo struct {
+	Info     HostInfo `json:"info"`
+	WorkerID int      `json:"worker_id"`
+}
+
 type MapMasterInfo struct {
 	State                       int
-	WorkerList                  []MemberInfo
-	WorkerMap                   map[string]MemberInfo
+	WorkerList                  []WorkerInfo
+	WorkerMap                   map[string]WorkerInfo
 	DispatchFileMap             map[string][]string
 	FinishFileCounter           map[string]int
 	IntermediateDoneNotifyToken string
@@ -31,13 +36,14 @@ type MapWorkerInfo struct {
 	IntermediateFilenamePrefix        string
 	MasterHost                        HostInfo
 	InitWorkerNum                     int
-	WorkerList                        []MemberInfo
-	WorkerMap                         map[string]MemberInfo
+	WorkerList                        []WorkerInfo
+	WorkerMap                         map[string]WorkerInfo
 	KeyValueReceived                  map[string]map[string][]MapReduceKeyValue // key -> input_filename -> list of K-Vs
 	KeyValueSent                      map[string]map[string][]MapReduceKeyValue // host -> input_filename -> list of K-Vs
+	KeyValueGenerated                 []map[string][]MapReduceKeyValue          // InitWorkerNum-bucket of map input_filename -> list of K-Vs
 	WrittenKey                        map[string]int
 	IntermediateFileWriteRequestToken string
-	IntermediateFileWriteRequestView  []MemberInfo
+	IntermediateFileWriteRequestView  []WorkerInfo
 	Lock                              sync.RWMutex
 }
 
@@ -57,8 +63,8 @@ const (
 var (
 	masterInfo MapMasterInfo = MapMasterInfo{
 		MASTER_STATE_NONE,
-		make([]MemberInfo, 0),
-		make(map[string]MemberInfo),
+		make([]WorkerInfo, 0),
+		make(map[string]WorkerInfo),
 		make(map[string][]string),
 		make(map[string]int),
 		"",
@@ -71,10 +77,11 @@ var (
 		"",
 		HostInfo{},
 		0,
-		make([]MemberInfo, 0),
-		make(map[string]MemberInfo),
+		make([]WorkerInfo, 0),
+		make(map[string]WorkerInfo),
 		make(map[string]map[string][]MapReduceKeyValue),
 		make(map[string]map[string][]MapReduceKeyValue),
+		make([]map[string][]MapReduceKeyValue, 0),
 		make(map[string]int),
 		"",
 		nil,
@@ -135,19 +142,53 @@ func MapTask(filename string) {
 		}
 	}
 
-	// send key value to other workers for collecting
-	tasks := make([]*RpcAsyncCallerTask, 0)
 	workerInfo.Lock.Lock()
 	master := workerInfo.MasterHost
-	it := 0
-	for _, worker := range workerInfo.WorkerList {
+
+	// put generated keys into memory
+	for i, list := range sendArray {
+		workerInfo.KeyValueGenerated[i][filename] = list
+	}
+
+	workerInfo.Lock.Unlock()
+
+	/*
+		// send key value to other workers for collecting
+		tasks := make([]*RpcAsyncCallerTask, 0)
+		workerInfo.Lock.Lock()
+		master := workerInfo.MasterHost
+		it := 0
+		for _, worker := range workerInfo.WorkerList {
+			sendTmp := make([]MapReduceKeyValue, 0)
+			for ; it <= worker.WorkerID && it < initWorkerNum; it++ {
+				sendTmp = append(sendTmp, sendArray[it]...)
+			}
+
+			if len(sendTmp) > 0 {
+				workerInfo.KeyValueSent[worker.Info.Host][filename] = sendTmp
+
+				task := &RpcAsyncCallerTask{
+					"MapTaskSendKeyValues",
+					worker.Info,
+					&ArgMapTaskSendKeyValues{Cfg.Self, filename, sendTmp},
+					new(ReplyMapTaskSendKeyValues),
+					make(chan error),
+				}
+
+				go CallRpcS2SGeneral(task)
+
+				tasks = append(tasks, task)
+			}
+		}
+
+		worker := workerInfo.WorkerList[0]
 		sendTmp := make([]MapReduceKeyValue, 0)
-		for ; it <= worker.Info.MachineID && it < initWorkerNum; it++ {
+		for ; it < initWorkerNum; it++ {
 			sendTmp = append(sendTmp, sendArray[it]...)
 		}
 
 		if len(sendTmp) > 0 {
-			workerInfo.KeyValueSent[worker.Info.Host][filename] = sendTmp
+			workerInfo.KeyValueSent[worker.Info.Host][filename] = append(workerInfo.KeyValueSent[worker.Info.Host][filename], sendTmp...)
 
 			task := &RpcAsyncCallerTask{
 				"MapTaskSendKeyValues",
@@ -161,42 +202,20 @@ func MapTask(filename string) {
 
 			tasks = append(tasks, task)
 		}
-	}
 
-	worker := workerInfo.WorkerList[0]
-	sendTmp := make([]MapReduceKeyValue, 0)
-	for ; it < initWorkerNum; it++ {
-		sendTmp = append(sendTmp, sendArray[it]...)
-	}
+		workerInfo.Lock.Unlock()
 
-	if len(sendTmp) > 0 {
-		workerInfo.KeyValueSent[worker.Info.Host][filename] = append(workerInfo.KeyValueSent[worker.Info.Host][filename], sendTmp...)
-
-		task := &RpcAsyncCallerTask{
-			"MapTaskSendKeyValues",
-			worker.Info,
-			&ArgMapTaskSendKeyValues{Cfg.Self, filename, sendTmp},
-			new(ReplyMapTaskSendKeyValues),
-			make(chan error),
+		// Wait for all RpcAsyncCallerTask
+		for _, task := range tasks {
+			<-task.Chan
 		}
-
-		go CallRpcS2SGeneral(task)
-
-		tasks = append(tasks, task)
-	}
-
-	workerInfo.Lock.Unlock()
-
-	// Wait for all RpcAsyncCallerTask
-	for _, task := range tasks {
-		<-task.Chan
-	}
+	*/
 
 	// send MapTaskNotifyMaster
 	task := &RpcAsyncCallerTask{
 		"MapTaskNotifyMaster",
 		master,
-		&ArgMapTaskNotifyMaster{Cfg.Self, NOTIFY_TYPE_FINISH_MAP_TASK, ""},
+		&ArgMapTaskNotifyMaster{Cfg.Self, NOTIFY_TYPE_FINISH_MAP_TASK, "", true},
 		new(ReplyMapTaskNotifyMaster),
 		make(chan error),
 	}
@@ -236,23 +255,53 @@ func MapTaskWriteIntermediateFiles() {
 		time.Sleep(500 * time.Millisecond)
 	}
 
-	bucket := make(map[string][]MapReduceKeyValue)
-	for key, map1 := range workerInfo.KeyValueReceived {
-		if _, ok := workerInfo.WrittenKey[key]; ok {
-			continue
+	/*
+		bucket := make(map[string][]MapReduceKeyValue)
+		for key, map1 := range workerInfo.KeyValueReceived {
+			if _, ok := workerInfo.WrittenKey[key]; ok {
+				continue
+			}
+
+			if _, ok := bucket[key]; !ok {
+				bucket[key] = make([]MapReduceKeyValue, 0)
+			}
+
+			for _, list := range map1 {
+				bucket[key] = append(bucket[key], list...)
+			}
 		}
 
-		if _, ok := bucket[key]; !ok {
-			bucket[key] = make([]MapReduceKeyValue, 0)
+		for key, _ := range bucket {
+			workerInfo.WrittenKey[key] = 1
 		}
+	*/
 
-		for _, list := range map1 {
-			bucket[key] = append(bucket[key], list...)
+	target_idx_list := make([]int, 0)
+	N := len(workerInfo.WorkerList)
+	for i, worker := range workerInfo.WorkerList {
+		if worker.Info.Host == Cfg.Self.Host {
+			last_worker := workerInfo.WorkerList[(i-1+N)%N]
+			for j := (last_worker.WorkerID + 1) % workerInfo.InitWorkerNum; j != worker.WorkerID; j = (j + 1) % workerInfo.InitWorkerNum {
+				target_idx_list = append(target_idx_list, j)
+			}
+			target_idx_list = append(target_idx_list, worker.WorkerID)
 		}
 	}
 
-	for key, _ := range bucket {
-		workerInfo.WrittenKey[key] = 1
+	// send MapTaskGetKeyValues (get key values from all workers)
+	tasks := make([]*RpcAsyncCallerTask, 0)
+	for _, worker := range workerInfo.WorkerList {
+		task := &RpcAsyncCallerTask{
+			"MapTaskGetKeyValues",
+			worker.Info,
+			&ArgMapTaskGetKeyValues{target_idx_list},
+			new(ReplyMapTaskGetKeyValues),
+			make(chan error),
+		}
+
+		go CallRpcS2SGeneral(task)
+
+		tasks = append(tasks, task)
 	}
 
 	prefix := workerInfo.IntermediateFilenamePrefix
@@ -260,32 +309,70 @@ func MapTaskWriteIntermediateFiles() {
 
 	workerInfo.Lock.Unlock()
 
-	chans := make([]chan error, 0)
-	for k, l := range bucket {
-		c := make(chan error)
-		chans = append(chans, c)
-
-		go func(ch chan error, key string, list []MapReduceKeyValue) {
-			filename := prefix + "_" + key
-			content, _ := json.Marshal(list)
-			err := SDFSUploadFile(filename, Cfg.Self, content)
-			if err != nil {
-				log.Printf("[Error][Map-worker] cannot write intermediate file %v: %v", filename, err)
-			}
-
-			ch <- nil
-		}(c, k, l)
+	success := true
+	// Wait for all RpcAsyncCallerTask
+	for _, task := range tasks {
+		err := <-task.Chan
+		if err != nil {
+			success = false
+			log.Printf("[Warn][Map-worker] get key value from %v error: %v (would be recovered later)", task.Info.Host, err)
+		}
 	}
 
-	for _, c := range chans {
-		<-c
+	if success {
+		workerInfo.Lock.Lock()
+
+		bucket := make(map[string][]MapReduceKeyValue)
+		for _, task := range tasks {
+			r := task.Reply.(*ReplyMapTaskGetKeyValues)
+			for _, list := range r.Data {
+				for _, obj := range list {
+					if _, ok := workerInfo.WrittenKey[obj.Key]; ok {
+						continue
+					}
+
+					if _, ok := bucket[obj.Key]; !ok {
+						bucket[obj.Key] = make([]MapReduceKeyValue, 0)
+					}
+
+					bucket[obj.Key] = append(bucket[obj.Key], obj)
+				}
+			}
+		}
+
+		for key, _ := range bucket {
+			workerInfo.WrittenKey[key] = 1
+		}
+
+		workerInfo.Lock.Unlock()
+
+		chans := make([]chan error, 0)
+		for k, l := range bucket {
+			c := make(chan error)
+			chans = append(chans, c)
+
+			go func(ch chan error, key string, list []MapReduceKeyValue) {
+				filename := prefix + "_" + key
+				content, _ := json.Marshal(list)
+				err := SDFSUploadFile(filename, Cfg.Self, content)
+				if err != nil {
+					log.Printf("[Error][Map-worker] cannot write intermediate file %v: %v", filename, err)
+				}
+
+				ch <- nil
+			}(c, k, l)
+		}
+
+		for _, c := range chans {
+			<-c
+		}
 	}
 
 	// send MapTaskNotifyMaster
 	task := &RpcAsyncCallerTask{
 		"MapTaskNotifyMaster",
 		master,
-		&ArgMapTaskNotifyMaster{Cfg.Self, NOTIFY_TYPE_FINISH_INTERMEDIATE_FILE, token},
+		&ArgMapTaskNotifyMaster{Cfg.Self, NOTIFY_TYPE_FINISH_INTERMEDIATE_FILE, token, success},
 		new(ReplyMapTaskNotifyMaster),
 		make(chan error),
 	}

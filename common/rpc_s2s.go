@@ -212,7 +212,7 @@ func (t *RpcS2S) MemberFailure(args *ArgMemberFailure, reply *ReplyMemberFailure
 		workerInfo.Lock.Lock()
 		if _, ok := workerInfo.WorkerMap[args.FailureInfo.Host]; ok {
 			N := len(workerInfo.WorkerList)
-			nextWorker := (*MemberInfo)(nil)
+			// nextWorker := (*WorkerInfo)(nil)
 			for i, worker := range workerInfo.WorkerList {
 				if args.FailureInfo.Host == worker.Info.Host {
 					for j := i; j < N-1; j++ {
@@ -220,36 +220,38 @@ func (t *RpcS2S) MemberFailure(args *ArgMemberFailure, reply *ReplyMemberFailure
 					}
 					workerInfo.WorkerList = workerInfo.WorkerList[:N-1]
 					N -= 1
-					nextWorker = &workerInfo.WorkerList[i%N]
+					// nextWorker = &workerInfo.WorkerList[i%N]
 					break
 				}
 			}
 			delete(workerInfo.WorkerMap, args.FailureInfo.Host)
 
-			if nextWorker == nil {
-				log.Printf("[Error][Map-worker] no next worker to send key-values after failure, this should not happen")
-			} else {
-				// send MapTaskSendKeyValues
-				for filename, list := range workerInfo.KeyValueSent[args.FailureInfo.Host] {
-					task := &RpcAsyncCallerTask{
-						"MapTaskSendKeyValues",
-						nextWorker.Info,
-						&ArgMapTaskSendKeyValues{Cfg.Self, filename, list},
-						new(ReplyMapTaskSendKeyValues),
-						make(chan error),
-					}
+			/*
+				if nextWorker == nil {
+					log.Printf("[Error][Map-worker] no next worker to send key-values after failure, this should not happen")
+				} else {
+					// send MapTaskSendKeyValues
+					for filename, list := range workerInfo.KeyValueSent[args.FailureInfo.Host] {
+						task := &RpcAsyncCallerTask{
+							"MapTaskSendKeyValues",
+							nextWorker.Info,
+							&ArgMapTaskSendKeyValues{Cfg.Self, filename, list},
+							new(ReplyMapTaskSendKeyValues),
+							make(chan error),
+						}
 
-					go CallRpcS2SGeneral(task)
+						go CallRpcS2SGeneral(task)
 
-					tasks = append(tasks, task)
+						tasks = append(tasks, task)
 
-					if _, ok2 := workerInfo.KeyValueSent[nextWorker.Info.Host][filename]; !ok2 {
-						workerInfo.KeyValueSent[nextWorker.Info.Host][filename] = list
-					} else {
-						workerInfo.KeyValueSent[nextWorker.Info.Host][filename] = append(workerInfo.KeyValueSent[nextWorker.Info.Host][filename], list...)
+						if _, ok2 := workerInfo.KeyValueSent[nextWorker.Info.Host][filename]; !ok2 {
+							workerInfo.KeyValueSent[nextWorker.Info.Host][filename] = list
+						} else {
+							workerInfo.KeyValueSent[nextWorker.Info.Host][filename] = append(workerInfo.KeyValueSent[nextWorker.Info.Host][filename], list...)
+						}
 					}
 				}
-			}
+			*/
 
 			delete(workerInfo.KeyValueSent, args.FailureInfo.Host)
 		}
@@ -454,7 +456,7 @@ func (t *RpcS2S) MapTaskStart(args *ArgMapTaskStart, reply *ReplyMapTaskStart) e
 	// refresh memberlist in order to prevent race condition
 	members = GetMemberList()
 	workerNum := args.MachineNum - 1
-	masterInfo.WorkerList = make([]MemberInfo, workerNum)
+	masterInfo.WorkerList = make([]WorkerInfo, workerNum)
 	cnt := 0
 	for _, mem := range members {
 		if mem.Info.Host == Cfg.Self.Host {
@@ -463,8 +465,8 @@ func (t *RpcS2S) MapTaskStart(args *ArgMapTaskStart, reply *ReplyMapTaskStart) e
 		masterInfo.DispatchFileMap[mem.Info.Host] = make([]string, 0)
 		masterInfo.FinishFileCounter[mem.Info.Host] = 0
 		masterInfo.IntermediateDoneCounter[mem.Info.Host] = 0
-		masterInfo.WorkerList[cnt] = mem
-		masterInfo.WorkerMap[mem.Info.Host] = mem
+		masterInfo.WorkerList[cnt] = WorkerInfo{mem.Info, cnt}
+		masterInfo.WorkerMap[mem.Info.Host] = WorkerInfo{mem.Info, cnt}
 		cnt += 1
 		if cnt >= workerNum {
 			break
@@ -472,7 +474,7 @@ func (t *RpcS2S) MapTaskStart(args *ArgMapTaskStart, reply *ReplyMapTaskStart) e
 	}
 	masterInfo.IntermediateDoneNotifyToken = ""
 
-	sendWorker := make([]MemberInfo, workerNum)
+	sendWorker := make([]WorkerInfo, workerNum)
 	copy(sendWorker, masterInfo.WorkerList)
 
 	// send MapTaskPrepareWorker
@@ -560,7 +562,7 @@ func (t *RpcS2S) MapTaskStart(args *ArgMapTaskStart, reply *ReplyMapTaskStart) e
 				}
 
 				// send write intermediate file command with new token and a worker list view
-				workerCopy := make([]MemberInfo, len(masterInfo.WorkerList))
+				workerCopy := make([]WorkerInfo, len(masterInfo.WorkerList))
 				copy(workerCopy, masterInfo.WorkerList)
 				for _, worker := range masterInfo.WorkerList {
 					masterInfo.IntermediateDoneCounter[worker.Info.Host] = 0
@@ -646,13 +648,18 @@ func (t *RpcS2S) MapTaskPrepareWorker(args *ArgMapTaskPrepareWorker, reply *Repl
 	workerInfo.MasterHost = args.MasterHost
 	workerInfo.InitWorkerNum = args.WorkerNum
 	workerInfo.WorkerList = args.WorkerList
-	workerInfo.WorkerMap = make(map[string]MemberInfo)
+	workerInfo.WorkerMap = make(map[string]WorkerInfo)
 	workerInfo.KeyValueReceived = make(map[string]map[string][]MapReduceKeyValue)
 	workerInfo.KeyValueSent = make(map[string]map[string][]MapReduceKeyValue)
 
 	for _, worker := range workerInfo.WorkerList {
 		workerInfo.WorkerMap[worker.Info.Host] = worker
 		workerInfo.KeyValueSent[worker.Info.Host] = make(map[string][]MapReduceKeyValue)
+	}
+
+	workerInfo.KeyValueGenerated = make([]map[string][]MapReduceKeyValue, args.WorkerNum)
+	for i := 0; i < args.WorkerNum; i++ {
+		workerInfo.KeyValueGenerated[i] = make(map[string][]MapReduceKeyValue)
 	}
 
 	workerInfo.WrittenKey = make(map[string]int)
@@ -708,6 +715,27 @@ func (t *RpcS2S) MapTaskSendKeyValues(args *ArgMapTaskSendKeyValues, reply *Repl
 	return nil
 }
 
+func (t *RpcS2S) MapTaskGetKeyValues(args *ArgMapTaskGetKeyValues, reply *ReplyMapTaskGetKeyValues) error {
+	reply.Flag = true
+	reply.ErrStr = ""
+	reply.Data = make(map[string][]MapReduceKeyValue)
+
+	workerInfo.Lock.Lock()
+
+	for _, idx := range args.GetBucketIdxList {
+		for filename, list := range workerInfo.KeyValueGenerated[idx] {
+			if _, ok := reply.Data[filename]; !ok {
+				reply.Data[filename] = make([]MapReduceKeyValue, 0)
+			}
+			reply.Data[filename] = append(reply.Data[filename], list...)
+		}
+	}
+
+	workerInfo.Lock.Unlock()
+
+	return nil
+}
+
 func (t *RpcS2S) MapTaskWriteIntermediateFile(args *ArgMapTaskWriteIntermediateFile, reply *ReplyMapTaskWriteIntermediateFile) error {
 	workerInfo.Lock.Lock()
 
@@ -747,10 +775,15 @@ func (t *RpcS2S) MapTaskNotifyMaster(args *ArgMapTaskNotifyMaster, reply *ReplyM
 		if masterInfo.IntermediateDoneNotifyToken != args.Token {
 			log.Printf("[Warn][Map-master] ignore out-of-date intermediate file notification (%v, %v)", args.Sender.Host, args.Token)
 		} else {
-			if _, ok := masterInfo.IntermediateDoneCounter[args.Sender.Host]; ok {
-				masterInfo.IntermediateDoneCounter[args.Sender.Host] = 1
+			if !args.Flag {
+				log.Printf("[Warn][Map-master] %v failed to write intermediate file (%v)", args.Sender.Host, args.Token)
 			} else {
-				log.Printf("[Warn][Map-master] ignore non-worker intermediate file notification (%v, %v)", args.Sender.Host, args.Token)
+				if _, ok := masterInfo.IntermediateDoneCounter[args.Sender.Host]; ok {
+					masterInfo.IntermediateDoneCounter[args.Sender.Host] = 1
+					log.Printf("[Info][Map-master] %v succeed to write intermediate file (%v)", args.Sender.Host, args.Token)
+				} else {
+					log.Printf("[Warn][Map-master] ignore non-worker intermediate file notification (%v, %v)", args.Sender.Host, args.Token)
+				}
 			}
 		}
 		masterInfo.Lock.Unlock()
@@ -771,10 +804,11 @@ func (t *RpcS2S) MapTaskFinish(args *ArgMapTaskFinish, reply *ReplyMapTaskFinish
 	workerInfo.IntermediateFilenamePrefix = ""
 	workerInfo.MasterHost = HostInfo{}
 	workerInfo.InitWorkerNum = 0
-	workerInfo.WorkerList = make([]MemberInfo, 0)
-	workerInfo.WorkerMap = make(map[string]MemberInfo)
+	workerInfo.WorkerList = make([]WorkerInfo, 0)
+	workerInfo.WorkerMap = make(map[string]WorkerInfo)
 	workerInfo.KeyValueReceived = make(map[string]map[string][]MapReduceKeyValue)
 	workerInfo.KeyValueSent = make(map[string]map[string][]MapReduceKeyValue)
+	workerInfo.KeyValueGenerated = make([]map[string][]MapReduceKeyValue, 0)
 	workerInfo.WrittenKey = make(map[string]int)
 	workerInfo.IntermediateFileWriteRequestToken = ""
 	workerInfo.IntermediateFileWriteRequestView = nil
