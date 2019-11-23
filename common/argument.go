@@ -98,8 +98,9 @@ type ArgMapTaskDispatch struct {
 }
 
 type ArgMapTaskSendKeyValues struct {
-	Sender HostInfo
-	Data   []MapReduceKeyValue
+	Sender        HostInfo
+	InputFilename string
+	Data          []MapReduceKeyValue
 }
 
 type ArgMapTaskWriteIntermediateFile struct {

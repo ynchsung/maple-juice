@@ -16,6 +16,7 @@ type MapReduceKeyValue struct {
 type MapMasterInfo struct {
 	State                       int
 	WorkerList                  []MemberInfo
+	WorkerMap                   map[string]MemberInfo
 	DispatchFileMap             map[string][]string
 	FinishFileCounter           map[string]int
 	IntermediateDoneNotifyToken string
@@ -28,10 +29,11 @@ type MapWorkerInfo struct {
 	ExecFilePath               string
 	IntermediateFilenamePrefix string
 	MasterHost                 HostInfo
-	WorkerNum                  int
+	InitWorkerNum              int
 	WorkerList                 []MemberInfo
-	KeyValueReceived           map[string][]MapReduceKeyValue
-	KeyValueSent               map[string][]MapReduceKeyValue
+	WorkerMap                  map[string]MemberInfo
+	KeyValueReceived           map[string]map[string][]MapReduceKeyValue // key -> input_filename -> list of K-Vs
+	KeyValueSent               map[string]map[string][]MapReduceKeyValue // host -> input_filename -> list of K-Vs
 	WrittenKey                 map[string]int
 	Lock                       sync.RWMutex
 }
@@ -53,6 +55,7 @@ var (
 	masterInfo MapMasterInfo = MapMasterInfo{
 		MASTER_STATE_NONE,
 		make([]MemberInfo, 0),
+		make(map[string]MemberInfo),
 		make(map[string][]string),
 		make(map[string]int),
 		"",
@@ -66,8 +69,9 @@ var (
 		HostInfo{},
 		0,
 		make([]MemberInfo, 0),
-		make(map[string][]MapReduceKeyValue),
-		make(map[string][]MapReduceKeyValue),
+		make(map[string]MemberInfo),
+		make(map[string]map[string][]MapReduceKeyValue),
+		make(map[string]map[string][]MapReduceKeyValue),
 		make(map[string]int),
 		sync.RWMutex{},
 	}
@@ -82,11 +86,11 @@ func MapTask(filename string) {
 	}
 
 	workerInfo.Lock.RLock()
-	workerNum := workerInfo.WorkerNum
+	initWorkerNum := workerInfo.InitWorkerNum
 	workerInfo.Lock.RUnlock()
 
 	// process input file
-	sendArray := make([][]MapReduceKeyValue, workerNum)
+	sendArray := make([][]MapReduceKeyValue, initWorkerNum)
 	start := 0
 	for {
 		i := start
@@ -116,7 +120,7 @@ func MapTask(filename string) {
 		_ = json.Unmarshal(out, &outputKeyValue)
 
 		for _, obj := range outputKeyValue {
-			idx := SDFSHash2(obj.Key, uint32(workerNum))
+			idx := SDFSHash2(obj.Key, uint32(initWorkerNum))
 			sendArray[idx] = append(sendArray[idx], obj)
 		}
 
@@ -133,15 +137,15 @@ func MapTask(filename string) {
 	it := 0
 	for _, worker := range workerInfo.WorkerList {
 		sendTmp := make([]MapReduceKeyValue, 0)
-		for ; it <= worker.Info.MachineID && it < workerNum; it++ {
+		for ; it <= worker.Info.MachineID && it < initWorkerNum; it++ {
 			sendTmp = append(sendTmp, sendArray[it]...)
 		}
-		workerInfo.KeyValueSent[worker.Info.Host] = append(workerInfo.KeyValueSent[worker.Info.Host], sendTmp...)
+		workerInfo.KeyValueSent[worker.Info.Host][filename] = sendTmp
 
 		task := &RpcAsyncCallerTask{
 			"MapTaskSendKeyValues",
 			worker.Info,
-			&ArgMapTaskSendKeyValues{Cfg.Self, sendTmp},
+			&ArgMapTaskSendKeyValues{Cfg.Self, filename, sendTmp},
 			new(ReplyMapTaskSendKeyValues),
 			make(chan error),
 		}
@@ -153,15 +157,15 @@ func MapTask(filename string) {
 
 	worker := workerInfo.WorkerList[0]
 	sendTmp := make([]MapReduceKeyValue, 0)
-	for ; it < workerNum; it++ {
+	for ; it < initWorkerNum; it++ {
 		sendTmp = append(sendTmp, sendArray[it]...)
 	}
-	workerInfo.KeyValueSent[worker.Info.Host] = append(workerInfo.KeyValueSent[worker.Info.Host], sendTmp...)
+	workerInfo.KeyValueSent[worker.Info.Host][filename] = sendTmp
 
 	task := &RpcAsyncCallerTask{
 		"MapTaskSendKeyValues",
 		worker.Info,
-		&ArgMapTaskSendKeyValues{Cfg.Self, sendTmp},
+		&ArgMapTaskSendKeyValues{Cfg.Self, filename, sendTmp},
 		new(ReplyMapTaskSendKeyValues),
 		make(chan error),
 	}
@@ -199,14 +203,17 @@ func MapTaskWriteIntermediateFiles(token string) {
 
 	workerInfo.Lock.Lock()
 
-	for _, list := range workerInfo.KeyValueReceived {
-		for _, obj := range list {
-			if _, ok := workerInfo.WrittenKey[obj.Key]; !ok {
-				if _, ok2 := bucket[obj.Key]; !ok2 {
-					bucket[obj.Key] = make([]MapReduceKeyValue, 0)
-				}
-				bucket[obj.Key] = append(bucket[obj.Key], obj)
-			}
+	for key, map1 := range workerInfo.KeyValueReceived {
+		if _, ok := workerInfo.WrittenKey[key]; ok {
+			continue
+		}
+
+		if _, ok := bucket[key]; !ok {
+			bucket[key] = make([]MapReduceKeyValue, 0)
+		}
+
+		for _, list := range map1 {
+			bucket[key] = append(bucket[key], list...)
 		}
 	}
 
