@@ -6,6 +6,7 @@ import (
 	"log"
 	"os/exec"
 	"sync"
+	"time"
 )
 
 type MapReduceKeyValue struct {
@@ -25,17 +26,19 @@ type MapMasterInfo struct {
 }
 
 type MapWorkerInfo struct {
-	State                      int
-	ExecFilePath               string
-	IntermediateFilenamePrefix string
-	MasterHost                 HostInfo
-	InitWorkerNum              int
-	WorkerList                 []MemberInfo
-	WorkerMap                  map[string]MemberInfo
-	KeyValueReceived           map[string]map[string][]MapReduceKeyValue // key -> input_filename -> list of K-Vs
-	KeyValueSent               map[string]map[string][]MapReduceKeyValue // host -> input_filename -> list of K-Vs
-	WrittenKey                 map[string]int
-	Lock                       sync.RWMutex
+	State                             int
+	ExecFilePath                      string
+	IntermediateFilenamePrefix        string
+	MasterHost                        HostInfo
+	InitWorkerNum                     int
+	WorkerList                        []MemberInfo
+	WorkerMap                         map[string]MemberInfo
+	KeyValueReceived                  map[string]map[string][]MapReduceKeyValue // key -> input_filename -> list of K-Vs
+	KeyValueSent                      map[string]map[string][]MapReduceKeyValue // host -> input_filename -> list of K-Vs
+	WrittenKey                        map[string]int
+	IntermediateFileWriteRequestToken string
+	IntermediateFileWriteRequestView  []MemberInfo
+	Lock                              sync.RWMutex
 }
 
 const (
@@ -73,6 +76,8 @@ var (
 		make(map[string]map[string][]MapReduceKeyValue),
 		make(map[string]map[string][]MapReduceKeyValue),
 		make(map[string]int),
+		"",
+		nil,
 		sync.RWMutex{},
 	}
 )
@@ -140,7 +145,32 @@ func MapTask(filename string) {
 		for ; it <= worker.Info.MachineID && it < initWorkerNum; it++ {
 			sendTmp = append(sendTmp, sendArray[it]...)
 		}
-		workerInfo.KeyValueSent[worker.Info.Host][filename] = sendTmp
+
+		if len(sendTmp) > 0 {
+			workerInfo.KeyValueSent[worker.Info.Host][filename] = sendTmp
+
+			task := &RpcAsyncCallerTask{
+				"MapTaskSendKeyValues",
+				worker.Info,
+				&ArgMapTaskSendKeyValues{Cfg.Self, filename, sendTmp},
+				new(ReplyMapTaskSendKeyValues),
+				make(chan error),
+			}
+
+			go CallRpcS2SGeneral(task)
+
+			tasks = append(tasks, task)
+		}
+	}
+
+	worker := workerInfo.WorkerList[0]
+	sendTmp := make([]MapReduceKeyValue, 0)
+	for ; it < initWorkerNum; it++ {
+		sendTmp = append(sendTmp, sendArray[it]...)
+	}
+
+	if len(sendTmp) > 0 {
+		workerInfo.KeyValueSent[worker.Info.Host][filename] = append(workerInfo.KeyValueSent[worker.Info.Host][filename], sendTmp...)
 
 		task := &RpcAsyncCallerTask{
 			"MapTaskSendKeyValues",
@@ -155,25 +185,6 @@ func MapTask(filename string) {
 		tasks = append(tasks, task)
 	}
 
-	worker := workerInfo.WorkerList[0]
-	sendTmp := make([]MapReduceKeyValue, 0)
-	for ; it < initWorkerNum; it++ {
-		sendTmp = append(sendTmp, sendArray[it]...)
-	}
-	workerInfo.KeyValueSent[worker.Info.Host][filename] = sendTmp
-
-	task := &RpcAsyncCallerTask{
-		"MapTaskSendKeyValues",
-		worker.Info,
-		&ArgMapTaskSendKeyValues{Cfg.Self, filename, sendTmp},
-		new(ReplyMapTaskSendKeyValues),
-		make(chan error),
-	}
-
-	go CallRpcS2SGeneral(task)
-
-	tasks = append(tasks, task)
-
 	workerInfo.Lock.Unlock()
 
 	// Wait for all RpcAsyncCallerTask
@@ -182,7 +193,7 @@ func MapTask(filename string) {
 	}
 
 	// send MapTaskNotifyMaster
-	task = &RpcAsyncCallerTask{
+	task := &RpcAsyncCallerTask{
 		"MapTaskNotifyMaster",
 		master,
 		&ArgMapTaskNotifyMaster{Cfg.Self, NOTIFY_TYPE_FINISH_MAP_TASK, ""},
@@ -198,11 +209,33 @@ func MapTask(filename string) {
 	}
 }
 
-func MapTaskWriteIntermediateFiles(token string) {
+func MapTaskWriteIntermediateFiles() {
+	token := ""
+
+	for {
+		flag := false
+
+		workerInfo.Lock.Lock()
+		if len(workerInfo.IntermediateFileWriteRequestView) == len(workerInfo.WorkerList) {
+			for i := 0; i < len(workerInfo.IntermediateFileWriteRequestView); i++ {
+				if workerInfo.IntermediateFileWriteRequestView[i].Info.Host != workerInfo.WorkerList[i].Info.Host {
+					flag = false
+					break
+				}
+			}
+		}
+		if flag {
+			token = workerInfo.IntermediateFileWriteRequestToken
+			workerInfo.IntermediateFileWriteRequestToken = ""
+			workerInfo.IntermediateFileWriteRequestView = nil
+			break
+		}
+		workerInfo.Lock.Unlock()
+
+		time.Sleep(500 * time.Millisecond)
+	}
+
 	bucket := make(map[string][]MapReduceKeyValue)
-
-	workerInfo.Lock.Lock()
-
 	for key, map1 := range workerInfo.KeyValueReceived {
 		if _, ok := workerInfo.WrittenKey[key]; ok {
 			continue

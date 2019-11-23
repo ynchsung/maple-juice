@@ -104,7 +104,8 @@ type ArgMapTaskSendKeyValues struct {
 }
 
 type ArgMapTaskWriteIntermediateFile struct {
-	RequestToken string
+	RequestToken   string
+	WorkerListView []MemberInfo
 }
 
 type ArgMapTaskNotifyMaster struct {

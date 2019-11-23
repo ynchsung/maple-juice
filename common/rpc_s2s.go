@@ -464,6 +464,7 @@ func (t *RpcS2S) MapTaskStart(args *ArgMapTaskStart, reply *ReplyMapTaskStart) e
 		masterInfo.FinishFileCounter[mem.Info.Host] = 0
 		masterInfo.IntermediateDoneCounter[mem.Info.Host] = 0
 		masterInfo.WorkerList[cnt] = mem
+		masterInfo.WorkerMap[mem.Info.Host] = mem
 		cnt += 1
 		if cnt >= workerNum {
 			break
@@ -558,13 +559,15 @@ func (t *RpcS2S) MapTaskStart(args *ArgMapTaskStart, reply *ReplyMapTaskStart) e
 					masterInfo.IntermediateDoneCounter[key] = 0
 				}
 
-				// send write intermediate file command with new token
+				// send write intermediate file command with new token and a worker list view
+				workerCopy := make([]MemberInfo, len(masterInfo.WorkerList))
+				copy(workerCopy, masterInfo.WorkerList)
 				for _, worker := range masterInfo.WorkerList {
 					masterInfo.IntermediateDoneCounter[worker.Info.Host] = 0
 					task := &RpcAsyncCallerTask{
 						"MapTaskWriteIntermediateFile",
 						worker.Info,
-						&ArgMapTaskWriteIntermediateFile{masterInfo.IntermediateDoneNotifyToken},
+						&ArgMapTaskWriteIntermediateFile{masterInfo.IntermediateDoneNotifyToken, workerCopy},
 						new(ReplyMapTaskWriteIntermediateFile),
 						make(chan error),
 					}
@@ -653,6 +656,8 @@ func (t *RpcS2S) MapTaskPrepareWorker(args *ArgMapTaskPrepareWorker, reply *Repl
 	}
 
 	workerInfo.WrittenKey = make(map[string]int)
+	workerInfo.IntermediateFileWriteRequestToken = ""
+	workerInfo.IntermediateFileWriteRequestView = nil
 
 	workerInfo.Lock.Unlock()
 
@@ -704,7 +709,20 @@ func (t *RpcS2S) MapTaskSendKeyValues(args *ArgMapTaskSendKeyValues, reply *Repl
 }
 
 func (t *RpcS2S) MapTaskWriteIntermediateFile(args *ArgMapTaskWriteIntermediateFile, reply *ReplyMapTaskWriteIntermediateFile) error {
-	go MapTaskWriteIntermediateFiles(args.RequestToken)
+	workerInfo.Lock.Lock()
+
+	flag := false
+	if workerInfo.IntermediateFileWriteRequestView == nil {
+		flag = true
+	}
+	workerInfo.IntermediateFileWriteRequestToken = args.RequestToken
+	workerInfo.IntermediateFileWriteRequestView = args.WorkerListView
+
+	if flag {
+		go MapTaskWriteIntermediateFiles()
+	}
+
+	workerInfo.Lock.Unlock()
 
 	reply.Flag = true
 	reply.ErrStr = ""
@@ -758,6 +776,8 @@ func (t *RpcS2S) MapTaskFinish(args *ArgMapTaskFinish, reply *ReplyMapTaskFinish
 	workerInfo.KeyValueReceived = make(map[string]map[string][]MapReduceKeyValue)
 	workerInfo.KeyValueSent = make(map[string]map[string][]MapReduceKeyValue)
 	workerInfo.WrittenKey = make(map[string]int)
+	workerInfo.IntermediateFileWriteRequestToken = ""
+	workerInfo.IntermediateFileWriteRequestView = nil
 
 	workerInfo.Lock.Unlock()
 
