@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -361,8 +362,13 @@ func store() {
 		panic(err)
 	}
 
+	regex := ""
+	if len(os.Args) >= 6 {
+		regex = os.Args[5]
+	}
+
 	var (
-		args  common.ArgClientListFilesByHost = common.ArgClientListFilesByHost{id, ""}
+		args  common.ArgClientListFilesByHost = common.ArgClientListFilesByHost{id, regex}
 		reply common.ReplyClientListFilesByHost
 	)
 
@@ -400,6 +406,42 @@ func store() {
 	}
 }
 
+func maple() {
+	num, err := strconv.Atoi(os.Args[5])
+	if err != nil {
+		panic(err)
+	}
+
+	args := &common.ArgMapTaskStart{
+		os.Args[4],
+		num,
+		os.Args[6],
+		os.Args[7],
+	}
+	reply := new(common.ReplyMapTaskStart)
+
+	task := common.RpcAsyncCallerTask{
+		"MapTaskStart",
+		common.HostInfo{os.Args[2], os.Args[3], "", 0},
+		&args,
+		&reply,
+		make(chan error),
+	}
+
+	go common.CallRpcClientGeneral(&task)
+
+	err = <-task.Chan
+	if err == nil && !reply.Flag {
+		err = errors.New(reply.ErrStr)
+	}
+
+	if err != nil {
+		fmt.Printf("Maple error: %v\n", err)
+	} else {
+		fmt.Printf("Maple success")
+	}
+}
+
 func main() {
 	if os.Args[1] == "log" {
 		grep_log()
@@ -423,5 +465,7 @@ func main() {
 		ls()
 	} else if os.Args[1] == "store" {
 		store()
+	} else if os.Args[1] == "maple" {
+		maple()
 	}
 }
