@@ -120,3 +120,24 @@ type ArgMapTaskNotifyMaster struct {
 }
 
 type ArgMapTaskFinish int
+
+type ArgReduceTaskStart struct {
+	ExecFilename               string
+	MachineNum                 int
+	IntermediateFilenamePrefix string
+	OutputFilename             string
+	DeleteInput                int
+}
+
+type ArgReduceTaskPrepareWorker struct {
+	ExecFilename string
+	MasterHost   HostInfo
+	WorkerList   []WorkerInfo
+	WorkerNum    int
+}
+
+type ArgReduceTaskDispatch struct {
+	IntermediateFilename string
+}
+
+type ArgReduceTaskFinish int

@@ -143,3 +143,23 @@ type ReplyMapTaskFinish struct {
 	Flag   bool
 	ErrStr string
 }
+
+type ReplyReduceTaskStart struct {
+	Flag   bool
+	ErrStr string
+}
+
+type ReplyReduceTaskPrepareWorker struct {
+	Flag   bool
+	ErrStr string
+}
+
+type ReplyReduceTaskDispatch struct {
+	Flag   bool
+	ErrStr string
+}
+
+type ReplyReduceTaskFinish struct {
+	Flag   bool
+	ErrStr string
+}

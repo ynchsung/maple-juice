@@ -20,14 +20,21 @@ type WorkerInfo struct {
 }
 
 type MapMasterStateInfo struct {
-	State                       int
-	WorkerList                  []WorkerInfo
-	WorkerMap                   map[string]WorkerInfo
+	State      int
+	WorkerList []WorkerInfo
+	WorkerMap  map[string]WorkerInfo
+
+	// for map task
 	DispatchFileMap             map[string][]string
 	FinishFileCounter           map[string]int
 	IntermediateDoneNotifyToken string
 	IntermediateDoneCounter     map[string]int
-	Lock                        sync.RWMutex
+
+	// for reduce task
+	DispatchFileMap2 map[string][]string
+	ResultFileMap    map[string]map[string][]MapReduceKeyValue // worker -> file -> list of key-value
+
+	Lock sync.RWMutex
 }
 
 type MapWorkerStateInfo struct {
@@ -55,10 +62,9 @@ const (
 	MASTER_STATE_MAP_WAIT_FOR_INTERMEDIATE_FILE = 3
 	MASTER_STATE_MAP_TASK_DONE                  = 4
 
-	MASTER_STATE_REDUCE_PREPARE         = 5
-	MASTER_STATE_REDUCE_WAIT_FOR_TASK   = 6
-	MASTER_STATE_REDUCE_WAIT_FOR_RESULT = 7
-	MASTER_STATE_REDUCE_TASK_DONE       = 8
+	MASTER_STATE_REDUCE_PREPARE       = 5
+	MASTER_STATE_REDUCE_WAIT_FOR_TASK = 6
+	MASTER_STATE_REDUCE_TASK_DONE     = 7
 )
 
 const (
@@ -75,6 +81,8 @@ var (
 		make(map[string]int),
 		"",
 		make(map[string]int),
+		make(map[string][]string),
+		make(map[string]map[string][]MapReduceKeyValue),
 		sync.RWMutex{},
 	}
 	workerInfo MapWorkerStateInfo = MapWorkerStateInfo{
