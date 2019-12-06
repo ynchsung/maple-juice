@@ -19,7 +19,7 @@ type WorkerInfo struct {
 	WorkerID int      `json:"worker_id"`
 }
 
-type MapMasterInfo struct {
+type MapMasterStateInfo struct {
 	State                       int
 	WorkerList                  []WorkerInfo
 	WorkerMap                   map[string]WorkerInfo
@@ -30,17 +30,17 @@ type MapMasterInfo struct {
 	Lock                        sync.RWMutex
 }
 
-type MapWorkerInfo struct {
-	State                             int
-	ExecFilePath                      string
-	IntermediateFilenamePrefix        string
-	MasterHost                        HostInfo
-	InitWorkerNum                     int
-	WorkerList                        []WorkerInfo
-	WorkerMap                         map[string]WorkerInfo
-	KeyValueReceived                  map[string]map[string][]MapReduceKeyValue // key -> input_filename -> list of K-Vs
-	KeyValueSent                      map[string]map[string][]MapReduceKeyValue // host -> input_filename -> list of K-Vs
-	KeyValueGenerated                 []map[string][]MapReduceKeyValue          // InitWorkerNum-bucket of map input_filename -> list of K-Vs
+type MapWorkerStateInfo struct {
+	State                      int
+	ExecFilePath               string
+	IntermediateFilenamePrefix string
+	MasterHost                 HostInfo
+	InitWorkerNum              int
+	WorkerList                 []WorkerInfo
+	WorkerMap                  map[string]WorkerInfo
+	// KeyValueReceived                  map[string]map[string][]MapReduceKeyValue // key -> input_filename -> list of K-Vs
+	// KeyValueSent                      map[string]map[string][]MapReduceKeyValue // host -> input_filename -> list of K-Vs
+	KeyValueBucket                    []map[string][]MapReduceKeyValue // InitWorkerNum-bucket of map input_filename -> list of K-Vs
 	WrittenKey                        map[string]int
 	IntermediateFileWriteRequestToken string
 	IntermediateFileWriteRequestView  []WorkerInfo
@@ -48,20 +48,26 @@ type MapWorkerInfo struct {
 }
 
 const (
-	MASTER_STATE_NONE                       = 0
-	MASTER_STATE_PREPARE                    = 1
-	MASTER_STATE_WAIT_FOR_MAP_TASK          = 2
-	MASTER_STATE_WAIT_FOR_INTERMEDIATE_FILE = 3
-	MASTER_STATE_MAP_TASK_DONE              = 4
+	MASTER_STATE_NONE = 0
+
+	MASTER_STATE_MAP_PREPARE                    = 1
+	MASTER_STATE_MAP_WAIT_FOR_TASK              = 2
+	MASTER_STATE_MAP_WAIT_FOR_INTERMEDIATE_FILE = 3
+	MASTER_STATE_MAP_TASK_DONE                  = 4
+
+	MASTER_STATE_REDUCE_PREPARE         = 5
+	MASTER_STATE_REDUCE_WAIT_FOR_TASK   = 6
+	MASTER_STATE_REDUCE_WAIT_FOR_RESULT = 7
+	MASTER_STATE_REDUCE_TASK_DONE       = 8
 )
 
 const (
-	NOTIFY_TYPE_FINISH_MAP_TASK          = 0
-	NOTIFY_TYPE_FINISH_INTERMEDIATE_FILE = 1
+	NOTIFY_TYPE_FINISH_MAP_TASK              = 0
+	NOTIFY_TYPE_FINISH_MAP_INTERMEDIATE_FILE = 1
 )
 
 var (
-	masterInfo MapMasterInfo = MapMasterInfo{
+	masterInfo MapMasterStateInfo = MapMasterStateInfo{
 		MASTER_STATE_NONE,
 		make([]WorkerInfo, 0),
 		make(map[string]WorkerInfo),
@@ -71,7 +77,7 @@ var (
 		make(map[string]int),
 		sync.RWMutex{},
 	}
-	workerInfo MapWorkerInfo = MapWorkerInfo{
+	workerInfo MapWorkerStateInfo = MapWorkerStateInfo{
 		-1,
 		"",
 		"",
@@ -79,8 +85,8 @@ var (
 		0,
 		make([]WorkerInfo, 0),
 		make(map[string]WorkerInfo),
-		make(map[string]map[string][]MapReduceKeyValue),
-		make(map[string]map[string][]MapReduceKeyValue),
+		// make(map[string]map[string][]MapReduceKeyValue),
+		// make(map[string]map[string][]MapReduceKeyValue),
 		make([]map[string][]MapReduceKeyValue, 0),
 		make(map[string]int),
 		"",
@@ -147,7 +153,7 @@ func MapTask(filename string) {
 
 	// put generated keys into memory
 	for i, list := range sendArray {
-		workerInfo.KeyValueGenerated[i][filename] = list
+		workerInfo.KeyValueBucket[i][filename] = list
 	}
 
 	workerInfo.Lock.Unlock()
@@ -375,7 +381,7 @@ func MapTaskWriteIntermediateFiles() {
 	task := &RpcAsyncCallerTask{
 		"MapTaskNotifyMaster",
 		master,
-		&ArgMapTaskNotifyMaster{Cfg.Self, NOTIFY_TYPE_FINISH_INTERMEDIATE_FILE, token, success},
+		&ArgMapTaskNotifyMaster{Cfg.Self, NOTIFY_TYPE_FINISH_MAP_INTERMEDIATE_FILE, token, success},
 		new(ReplyMapTaskNotifyMaster),
 		make(chan error),
 	}
