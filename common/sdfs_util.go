@@ -26,15 +26,15 @@ func SDFSDownloadFile(filename string, host HostInfo) ([]byte, int, error) {
 	return reply.Content, reply.Length, err
 }
 
-func SDFSUploadFile(filename string, host HostInfo, content []byte) error {
+func SDFSUploadFileChunk(host HostInfo, token string, filename string, length int, offset int, content []byte, force bool) (*ReplyClientUpdateFile, error) {
 	args := &ArgClientUpdateFile{
-		GenRandomString(16),
+		token,
 		filename,
 		false,
-		len(content),
-		0,
+		length,
+		offset,
 		content,
-		true,
+		force,
 	}
 	reply := new(ReplyClientUpdateFile)
 
@@ -49,9 +49,37 @@ func SDFSUploadFile(filename string, host HostInfo, content []byte) error {
 	go CallRpcClientGeneral(&task)
 
 	err := <-task.Chan
-	if err == nil && !reply.Flag {
-		err = errors.New(reply.ErrStr)
+	return task.Reply.(*ReplyClientUpdateFile), err
+}
+
+func SDFSUploadFile(host HostInfo, filename string, content []byte, force bool) (bool, bool, error) {
+	token := GenRandomString(16)
+
+	// prepare chunk
+	finish := false
+	offset := 0
+	l := len(content)
+	for offset < l {
+		end := offset + SDFS_MAX_BUFFER_SIZE
+		if end > l {
+			end = l
+		}
+
+		reply, err := SDFSUploadFileChunk(host, token, filename, l, offset, content[offset:end], force)
+		if err != nil {
+			return false, false, err
+		}
+
+		if !reply.Flag {
+			return false, reply.NeedForce, errors.New(reply.ErrStr)
+		}
+
+		if reply.Finish {
+			finish = true
+		}
+
+		offset = end
 	}
 
-	return err
+	return finish, false, nil
 }

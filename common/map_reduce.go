@@ -285,6 +285,7 @@ func MapTaskWriteIntermediateFiles() {
 				target_idx_list = append(target_idx_list, j)
 			}
 			target_idx_list = append(target_idx_list, worker.WorkerID)
+			break
 		}
 	}
 
@@ -352,11 +353,13 @@ func MapTaskWriteIntermediateFiles() {
 			chans = append(chans, c)
 
 			go func(ch chan error, key string, list []MapReduceKeyValue) {
-				filename := prefix + "_" + key
+				fn := prefix + "_" + key
 				content, _ := json.Marshal(list)
-				err := SDFSUploadFile(filename, Cfg.Self, content)
+				finish, _, err := SDFSUploadFile(Cfg.Self, fn, content, true)
 				if err != nil {
-					log.Printf("[Error][Map-worker] cannot write intermediate file %v: %v", filename, err)
+					log.Printf("[Error][Map-worker] cannot write intermediate file %v: %v", fn, err)
+				} else if !finish {
+					log.Printf("[Error][Map-worker] write intermediate file didn't finish, this should not happen")
 				}
 
 				ch <- nil

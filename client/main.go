@@ -210,92 +210,46 @@ func member_leave() {
 	}
 }
 
-func put_file_offset(token string, fileLength int, offset int, content []byte, force bool) (*common.ReplyClientUpdateFile, error) {
-	var (
-		args  common.ArgClientUpdateFile
-		reply common.ReplyClientUpdateFile
-	)
-	args.RequestToken = token
-	args.Filename = os.Args[5]
-	args.DeleteFlag = false
-	args.Length = fileLength
-	args.Offset = offset
-	args.Content = content
-	args.ForceFlag = force
-
-	task := common.RpcAsyncCallerTask{
-		"UpdateFile",
-		common.HostInfo{os.Args[2], os.Args[3], "", 0},
-		&args,
-		&reply,
-		make(chan error),
-	}
-
-	go common.CallRpcClientGeneral(&task)
-
-	err := <-task.Chan
-	return &reply, err
-}
-
 func put_file(force bool) {
 	content, err := ioutil.ReadFile(os.Args[4])
 	if err != nil {
 		panic(err)
 	}
 
-	token := common.GenRandomString(16)
+	host := common.HostInfo{os.Args[2], os.Args[3], "", 0}
 
-	// prepare chunk argument
 	st := time.Now().UnixNano()
-	finish := false
-	offset := 0
-	l := len(content)
-	for offset < l {
-		end := offset + common.SDFS_MAX_BUFFER_SIZE
-		if end > l {
-			end = l
-		}
-
-		reply, err := put_file_offset(token, l, offset, content[offset:end], force)
-		if err != nil {
-			fmt.Printf("Error: %v\n", err)
-		} else {
-			fmt.Printf("PutFile (offset %v) result %v, finish %v\n", offset, reply.Flag, reply.Finish)
-			if reply.Finish {
-				finish = true
-			}
-			if !reply.Flag {
-				fmt.Printf("Error %v\n", reply.ErrStr)
-				if !force && reply.NeedForce {
-					c := make(chan bool)
-					go func() {
-						reader := bufio.NewReader(os.Stdin)
-						fmt.Printf("Want to force put (y/n)? ")
-						text, _ := reader.ReadString('\n')
-						if text == "y\n" {
-							c <- true
-						} else {
-							c <- false
-						}
-					}()
-
-					select {
-					case x := <-c:
-						if x {
-							put_file(true)
-						}
-					case <-time.After(30 * time.Second):
-						fmt.Printf("Timeout after 30 seconds, abort put\n")
-					}
-				}
-				return
-			}
-		}
-
-		offset = end
-	}
+	finish, needForce, err := common.SDFSUploadFile(host, os.Args[5], content, force)
 	ed := time.Now().UnixNano()
+
 	fmt.Printf("PutFile %v -> %v finish %v, time %v ns\n", os.Args[4], os.Args[5], finish, ed-st)
+
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+	}
+
+	if needForce {
+		c := make(chan bool)
+		go func() {
+			reader := bufio.NewReader(os.Stdin)
+			fmt.Printf("Want to force put (y/n)? ")
+			text, _ := reader.ReadString('\n')
+			if text == "y\n" {
+				c <- true
+			} else {
+				c <- false
+			}
+		}()
+
+		select {
+		case x := <-c:
+			if x {
+				put_file(true)
+			}
+		case <-time.After(30 * time.Second):
+			fmt.Printf("Timeout after 30 seconds, abort put\n")
+		}
+	}
 }
 
 func delete_file(force bool) {
@@ -355,34 +309,15 @@ func delete_file(force bool) {
 }
 
 func get_file() {
-	var (
-		args  common.ArgClientGetFile = common.ArgClientGetFile{os.Args[4]}
-		reply common.ReplyClientGetFile
-	)
-
-	task := common.RpcAsyncCallerTask{
-		"GetFile",
-		common.HostInfo{os.Args[2], os.Args[3], "", 0},
-		&args,
-		&reply,
-		make(chan error),
-	}
-
-	go common.CallRpcClientGeneral(&task)
-
-	err := <-task.Chan
+	content, length, err := common.SDFSDownloadFile(os.Args[4], common.HostInfo{os.Args[2], os.Args[3], "", 0})
 	if err != nil {
-		fmt.Printf("Error: %v\n", err)
+		fmt.Printf("GetFile error: %v\n", err)
 	} else {
-		fmt.Printf("GetFile result %v\n", reply.Flag)
-		if !reply.Flag {
-			fmt.Printf("error %v\n", reply.ErrStr)
-		} else {
-			fmt.Printf("file len %v\n", reply.Length)
-			_, err2 := common.WriteFile(os.Args[5], reply.Content[0:reply.Length])
-			if err2 != nil {
-				panic(err2)
-			}
+		fmt.Printf("GetFile success\n")
+		fmt.Printf("file len %v\n", length)
+		_, err2 := common.WriteFile(os.Args[5], content[0:length])
+		if err2 != nil {
+			panic(err2)
 		}
 	}
 }
