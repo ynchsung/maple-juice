@@ -212,7 +212,29 @@ func (t *RpcS2S) MemberFailure(args *ArgMemberFailure, reply *ReplyMemberFailure
 					delete(masterInfo.IntermediateDoneCounter, args.FailureInfo.Host)
 				} else if masterInfo.State == MASTER_STATE_REDUCE_WAIT_FOR_TASK {
 					// reduce task: need to re-dispatch intermediate files
-					// TODO
+
+					// send ReduceTaskDispatch
+					idx := 0
+					for _, filename := range masterInfo.DispatchFileMap2[args.FailureInfo.Host] {
+						target_worker := masterInfo.WorkerList[idx]
+						task := &RpcAsyncCallerTask{
+							"ReduceTaskDispatch",
+							target_worker.Info,
+							&ArgReduceTaskDispatch{filename},
+							new(ReplyReduceTaskDispatch),
+							make(chan error),
+						}
+
+						go CallRpcS2SGeneral(task)
+
+						tasks = append(tasks, task)
+
+						masterInfo.DispatchFileMap2[target_worker.Info.Host] = append(masterInfo.DispatchFileMap2[target_worker.Info.Host], filename)
+						idx = (idx + 1) % N
+					}
+
+					delete(masterInfo.DispatchFileMap2, args.FailureInfo.Host)
+					delete(masterInfo.ResultFileMap, args.FailureInfo.Host)
 				}
 			}
 		}
