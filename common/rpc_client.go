@@ -518,3 +518,29 @@ func (t *RpcClient) MapTaskStart(args *ArgMapTaskStart, reply *ReplyMapTaskStart
 
 	return nil
 }
+
+func (t *RpcClient) ReduceTaskStart(args *ArgReduceTaskStart, reply *ReplyReduceTaskStart) error {
+	master, N := GetMapReduceMaster()
+	if N < args.MachineNum {
+		reply.Flag = false
+		reply.ErrStr = "Not enough node in cluster"
+		return nil
+	}
+
+	task := &RpcAsyncCallerTask{
+		"ReduceTaskStart",
+		master.Info,
+		args,
+		reply,
+		make(chan error),
+	}
+
+	go CallRpcS2SGeneral(task)
+
+	err := <-task.Chan
+	if err != nil {
+		log.Printf("[Error] fail to start reduce task on master node (%v): %v", master.Info.Host, err)
+	}
+
+	return nil
+}
