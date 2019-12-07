@@ -254,57 +254,38 @@ func put_file(force bool) {
 }
 
 func delete_file(force bool) {
-	var (
-		args  common.ArgClientUpdateFile
-		reply common.ReplyClientUpdateFile
-	)
+	host := common.HostInfo{os.Args[2], os.Args[3], "", 0}
 
-	args.Filename = os.Args[4]
-	args.DeleteFlag = true
-	args.Length = 0
-	args.Content = nil
-	args.Offset = 0
-	args.ForceFlag = force
+	st := time.Now().UnixNano()
+	finish, needForce, err := common.SDFSDeleteFile(host, os.Args[4], force)
+	ed := time.Now().UnixNano()
 
-	task := common.RpcAsyncCallerTask{
-		"UpdateFile",
-		common.HostInfo{os.Args[2], os.Args[3], "", 0},
-		&args,
-		&reply,
-		make(chan error),
-	}
+	fmt.Printf("DeleteFile %v, finish %v, time %v ns\n", os.Args[4], finish, ed-st)
 
-	go common.CallRpcClientGeneral(&task)
-
-	err := <-task.Chan
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
-	} else {
-		fmt.Printf("DeleteFile result %v, finish %v\n", reply.Flag, reply.Finish)
-		if !reply.Flag {
-			fmt.Printf("Error %v\n", reply.ErrStr)
-			if !force && reply.NeedForce {
-				c := make(chan bool)
-				go func() {
-					reader := bufio.NewReader(os.Stdin)
-					fmt.Printf("Want to force delete (y/n)? ")
-					text, _ := reader.ReadString('\n')
-					if text == "y\n" {
-						c <- true
-					} else {
-						c <- false
-					}
-				}()
+	}
 
-				select {
-				case x := <-c:
-					if x {
-						delete_file(true)
-					}
-				case <-time.After(30 * time.Second):
-					fmt.Printf("Timeout after 30 seconds, abort delete\n")
-				}
+	if needForce {
+		c := make(chan bool)
+		go func() {
+			reader := bufio.NewReader(os.Stdin)
+			fmt.Printf("Want to force delete (y/n)? ")
+			text, _ := reader.ReadString('\n')
+			if text == "y\n" {
+				c <- true
+			} else {
+				c <- false
 			}
+		}()
+
+		select {
+		case x := <-c:
+			if x {
+				put_file(true)
+			}
+		case <-time.After(30 * time.Second):
+			fmt.Printf("Timeout after 30 seconds, abort delete\n")
 		}
 	}
 }

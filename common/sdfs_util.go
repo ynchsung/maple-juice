@@ -83,3 +83,37 @@ func SDFSUploadFile(host HostInfo, filename string, content []byte, force bool) 
 
 	return finish, false, nil
 }
+
+func SDFSDeleteFile(host HostInfo, filename string, force bool) (bool, bool, error) {
+	args := &ArgClientUpdateFile{
+		GenRandomString(16),
+		filename,
+		true,
+		0,
+		0,
+		nil,
+		force,
+	}
+	reply := new(ReplyClientUpdateFile)
+
+	task := RpcAsyncCallerTask{
+		"UpdateFile",
+		host,
+		args,
+		reply,
+		make(chan error),
+	}
+
+	go CallRpcClientGeneral(&task)
+
+	err := <-task.Chan
+	if err != nil {
+		return false, false, err
+	}
+
+	if !reply.Flag {
+		return false, reply.NeedForce, errors.New(reply.ErrStr)
+	}
+
+	return reply.Finish, reply.NeedForce, nil
+}

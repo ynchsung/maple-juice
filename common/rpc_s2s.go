@@ -1080,6 +1080,24 @@ func (t *RpcS2S) ReduceTaskStart(args *ArgReduceTaskStart, reply *ReplyReduceTas
 		log.Printf("[Info][Reduce-master] write output file %v success", args.OutputFilename)
 		reply.Flag = true
 		reply.ErrStr = ""
+
+		if args.DeleteInput == 1 {
+			chans := make([]chan error, 0)
+			for filename, _ := range files {
+				ch := make(chan error)
+
+				go func(fn string, c chan error) {
+					_, _, err := SDFSDeleteFile(Cfg.Self, fn, true)
+					c <- err
+				}(filename, ch)
+
+				chans = append(chans, ch)
+			}
+
+			for _, ch := range chans {
+				<-ch
+			}
+		}
 	}
 
 	return nil
