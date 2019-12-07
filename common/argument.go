@@ -140,4 +140,10 @@ type ArgReduceTaskDispatch struct {
 	IntermediateFilename string
 }
 
+type ArgReduceTaskNotifyMaster struct {
+	Sender   HostInfo
+	Filename string
+	Data     []MapReduceKeyValue
+}
+
 type ArgReduceTaskFinish int

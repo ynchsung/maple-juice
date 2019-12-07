@@ -1035,7 +1035,109 @@ func (t *RpcS2S) ReduceTaskStart(args *ArgReduceTaskStart, reply *ReplyReduceTas
 		time.Sleep(1 * time.Second)
 	}
 
+	// put all results into args.OutputFilename
+	content := ""
+	for _, mp := range masterInfo.ResultFileMap {
+		for _, arr := range mp {
+			for _, obj := range arr {
+				content = content + obj.Key + " " + obj.Value + "\n"
+			}
+		}
+	}
+
+	finish, _, err := SDFSUploadFile(Cfg.Self, args.OutputFilename, []byte(content), true)
+	if err != nil {
+		log.Printf("[Error][Reduce-master] cannot write output file %v: %v", args.OutputFilename, err)
+		reply.Flag = false
+		reply.ErrStr = err.Error()
+	} else if !finish {
+		log.Printf("[Error][Reduce-master] write output file didn't finish, this should not happen")
+		reply.Flag = false
+		reply.ErrStr = "write output file didn't finish, this should not happen"
+	} else {
+		log.Printf("[Info][Reduce-master] write output file %v success", args.OutputFilename)
+		reply.Flag = true
+		reply.ErrStr = ""
+	}
+
+	return nil
+}
+
+func (t *RpcS2S) ReduceTaskPrepareWorker(args *ArgReduceTaskPrepareWorker, reply *ReplyReduceTaskPrepareWorker) error {
+	// download exec file from SDFS
+	content, length, err := SDFSDownloadFile(args.ExecFilename, Cfg.Self)
+	if err != nil {
+		reply.Flag = false
+		reply.ErrStr = err.Error()
+		log.Printf("[Error][Reduce-worker] cannot get executable file %v: %v", args.ExecFilename, err)
+		return nil
+	}
+
+	storeStr := filepath.Join("./", Cfg.MapReduceWorkDir, SDFSGenerateRandomFilename(8))
+	WriteFile(storeStr, content[0:length])
+
+	workerInfo.Lock.Lock()
+
+	workerInfo.ExecFilePath = storeStr
+	workerInfo.MasterHost = args.MasterHost
+	workerInfo.InitWorkerNum = args.WorkerNum
+	workerInfo.WorkerList = args.WorkerList
+	workerInfo.WorkerMap = make(map[string]WorkerInfo)
+
+	for _, worker := range workerInfo.WorkerList {
+		workerInfo.WorkerMap[worker.Info.Host] = worker
+	}
+
+	workerInfo.Lock.Unlock()
+
 	reply.Flag = true
 	reply.ErrStr = ""
+	return nil
+}
+
+func (t *RpcS2S) ReduceTaskDispatch(args *ArgReduceTaskDispatch, reply *ReplyReduceTaskDispatch) error {
+	go ReduceTask(args.IntermediateFilename)
+
+	reply.Flag = true
+	reply.ErrStr = ""
+
+	return nil
+}
+
+func (t *RpcS2S) ReduceTaskNotifyMaster(args *ArgReduceTaskNotifyMaster, reply *ReplyReduceTaskNotifyMaster) error {
+	reply.Flag = true
+	reply.ErrStr = ""
+
+	masterInfo.Lock.Lock()
+	if _, ok := masterInfo.ResultFileMap[args.Sender.Host]; ok {
+		masterInfo.ResultFileMap[args.Sender.Host][args.Filename] = args.Data
+	} else {
+		log.Printf("[Warn][Reduce-master] ignore non-worker finish reduce task notification (%v)", args.Sender.Host)
+	}
+	masterInfo.Lock.Unlock()
+
+	return nil
+}
+
+func (t *RpcS2S) ReduceTaskFinish(args *ArgReduceTaskFinish, reply *ReplyReduceTaskFinish) error {
+	workerInfo.Lock.Lock()
+
+	workerInfo.State = -1
+	workerInfo.ExecFilePath = ""
+	workerInfo.IntermediateFilenamePrefix = ""
+	workerInfo.MasterHost = HostInfo{}
+	workerInfo.InitWorkerNum = 0
+	workerInfo.WorkerList = make([]WorkerInfo, 0)
+	workerInfo.WorkerMap = make(map[string]WorkerInfo)
+	workerInfo.KeyValueBucket = make([]map[string][]MapReduceKeyValue, 0)
+	workerInfo.WrittenKey = make(map[string]int)
+	workerInfo.IntermediateFileWriteRequestToken = ""
+	workerInfo.IntermediateFileWriteRequestView = nil
+
+	workerInfo.Lock.Unlock()
+
+	reply.Flag = true
+	reply.ErrStr = ""
+
 	return nil
 }

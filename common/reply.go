@@ -159,6 +159,11 @@ type ReplyReduceTaskDispatch struct {
 	ErrStr string
 }
 
+type ReplyReduceTaskNotifyMaster struct {
+	Flag   bool
+	ErrStr string
+}
+
 type ReplyReduceTaskFinish struct {
 	Flag   bool
 	ErrStr string

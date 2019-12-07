@@ -401,3 +401,45 @@ func MapTaskWriteIntermediateFiles() {
 		log.Printf("[Error][Map-worker] cannot notify master: %v", err)
 	}
 }
+
+func ReduceTask(filename string) {
+	// download input file from sdfs
+	content, length, err := SDFSDownloadFile(filename, Cfg.Self)
+	if err != nil {
+		log.Printf("[Error][Reduce-worker] cannot get input file %v: %v", filename, err)
+		return
+	}
+
+	// process input file
+	cmd := exec.Command(workerInfo.ExecFilePath)
+	stdin, _ := cmd.StdinPipe()
+
+	go func() {
+		defer stdin.Close()
+		io.WriteString(stdin, string(content[0:length]))
+	}()
+
+	out, _ := cmd.Output()
+	var outputKeyValue []MapReduceKeyValue
+	_ = json.Unmarshal(out, &outputKeyValue)
+
+	workerInfo.Lock.RLock()
+	master := workerInfo.MasterHost
+	workerInfo.Lock.RUnlock()
+
+	// send ReduceTaskNotifyMaster
+	task := &RpcAsyncCallerTask{
+		"ReduceTaskNotifyMaster",
+		master,
+		&ArgReduceTaskNotifyMaster{Cfg.Self, filename, outputKeyValue},
+		new(ReplyReduceTaskNotifyMaster),
+		make(chan error),
+	}
+
+	go CallRpcS2SGeneral(task)
+
+	err = <-task.Chan
+	if err != nil {
+		log.Printf("[Error][Reduce-worker] cannot notify master: %v", err)
+	}
+}
