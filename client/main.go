@@ -442,6 +442,48 @@ func maple() {
 	}
 }
 
+func juice() {
+	num, err := strconv.Atoi(os.Args[5])
+	if err != nil {
+		panic(err)
+	}
+
+	dFlag, err := strconv.Atoi(os.Args[8])
+	if err != nil {
+		panic(err)
+	}
+
+	args := &common.ArgReduceTaskStart{
+		os.Args[4],
+		num,
+		os.Args[6],
+		os.Args[7],
+		dFlag,
+	}
+	reply := new(common.ReplyReduceTaskStart)
+
+	task := common.RpcAsyncCallerTask{
+		"ReduceTaskStart",
+		common.HostInfo{os.Args[2], os.Args[3], "", 0},
+		&args,
+		&reply,
+		make(chan error),
+	}
+
+	go common.CallRpcClientGeneral(&task)
+
+	err = <-task.Chan
+	if err == nil && !reply.Flag {
+		err = errors.New(reply.ErrStr)
+	}
+
+	if err != nil {
+		fmt.Printf("Juice error: %v\n", err)
+	} else {
+		fmt.Printf("Juice success")
+	}
+}
+
 func main() {
 	if os.Args[1] == "log" {
 		grep_log()
@@ -467,5 +509,7 @@ func main() {
 		store()
 	} else if os.Args[1] == "maple" {
 		maple()
+	} else if os.Args[1] == "juice" {
+		juice()
 	}
 }
