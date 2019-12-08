@@ -479,16 +479,24 @@ func ReduceTask(filename string) {
 		return
 	}
 
+	fmt.Printf("go reduce %v\n", filename)
+
 	// process input file
 	cmd := exec.Command(workerInfo.ExecFilePath)
-	stdin, _ := cmd.StdinPipe()
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		fmt.Printf("%v error: %v\n", filename, err)
+	}
 
 	go func() {
 		defer stdin.Close()
 		io.WriteString(stdin, string(content[0:length]))
 	}()
 
-	out, _ := cmd.Output()
+	out, err := cmd.Output()
+	if err != nil {
+		fmt.Printf("%v error 2: %v\n", filename, err)
+	}
 	var outputKeyValue []MapReduceKeyValue
 	_ = json.Unmarshal(out, &outputKeyValue)
 
