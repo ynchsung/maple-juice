@@ -579,7 +579,9 @@ func (t *RpcS2S) MapTaskStart(args *ArgMapTaskStart, reply *ReplyMapTaskStart) e
 		<-task.Chan
 	}
 
+	xx := -1
 	for {
+		xx += 1
 		tasks = make([]*RpcAsyncCallerTask, 0)
 		finishFlag := false
 
@@ -590,8 +592,13 @@ func (t *RpcS2S) MapTaskStart(args *ArgMapTaskStart, reply *ReplyMapTaskStart) e
 			for key, value := range masterInfo.FinishFileCounter {
 				if value != len(masterInfo.DispatchFileMap[key]) {
 					flag = false
-					break
 				}
+				if xx%30 == 0 {
+					fmt.Printf("<%v: %v/%v>", key, value, len(masterInfo.DispatchFileMap[key]))
+				}
+			}
+			if xx%30 == 0 {
+				fmt.Printf("\n")
 			}
 			if flag {
 				masterInfo.State = MASTER_STATE_MAP_WAIT_FOR_INTERMEDIATE_FILE
@@ -621,11 +628,16 @@ func (t *RpcS2S) MapTaskStart(args *ArgMapTaskStart, reply *ReplyMapTaskStart) e
 		} else {
 			// check intermediate done counter
 			flag := true
-			for _, value := range masterInfo.IntermediateDoneCounter {
+			for key, value := range masterInfo.IntermediateDoneCounter {
 				if value != 1 {
 					flag = false
-					break
+					if xx%30 == 0 {
+						fmt.Printf("<%v: %v/%v>", key, value, 1)
+					}
 				}
+			}
+			if xx%30 == 0 {
+				fmt.Printf("\n")
 			}
 			if flag {
 				finishFlag = true

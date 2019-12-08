@@ -105,7 +105,8 @@ var (
 
 func MapTask(filename string) {
 	// download input file from sdfs
-	content, length, err := SDFSDownloadFile(filename, Cfg.Self)
+	//content, length, err := SDFSDownloadFile(filename, Cfg.Self)
+	content, _, err := SDFSDownloadFile(filename, Cfg.Self)
 	if err != nil {
 		log.Printf("[Error][Map-worker] cannot get input file %v: %v", filename, err)
 		return
@@ -117,44 +118,47 @@ func MapTask(filename string) {
 
 	// process input file
 	sendArray := make([][]MapReduceKeyValue, initWorkerNum)
-	start := 0
-	for {
-		i := start
-		cnt := 0
-		for ; i < length; i++ {
-			if content[i] == '\n' {
-				cnt += 1
-				if cnt >= 10 {
-					break
+	/*
+		start := 0
+		for {
+			i := start
+			cnt := 0
+			for ; i < length; i++ {
+				if content[i] == '\n' {
+					cnt += 1
+					if cnt >= 10 {
+						break
+					}
 				}
 			}
-		}
-		if i < length {
-			i += 1
-		}
+			if i < length {
+				i += 1
+			}
+	*/
+	cmd := exec.Command(workerInfo.ExecFilePath)
+	stdin, _ := cmd.StdinPipe()
 
-		cmd := exec.Command(workerInfo.ExecFilePath)
-		stdin, _ := cmd.StdinPipe()
+	go func() {
+		defer stdin.Close()
+		io.WriteString(stdin, string(content))
+		//io.WriteString(stdin, string(content[start:i]))
+	}()
 
-		go func() {
-			defer stdin.Close()
-			io.WriteString(stdin, string(content[start:i]))
-		}()
+	out, _ := cmd.Output()
+	var outputKeyValue []MapReduceKeyValue
+	_ = json.Unmarshal(out, &outputKeyValue)
 
-		out, _ := cmd.Output()
-		var outputKeyValue []MapReduceKeyValue
-		_ = json.Unmarshal(out, &outputKeyValue)
+	for _, obj := range outputKeyValue {
+		idx := SDFSHash2(obj.Key, uint32(initWorkerNum))
+		sendArray[idx] = append(sendArray[idx], obj)
+	}
 
-		for _, obj := range outputKeyValue {
-			idx := SDFSHash2(obj.Key, uint32(initWorkerNum))
-			sendArray[idx] = append(sendArray[idx], obj)
-		}
-
+	/*
 		start = i
 		if start >= length {
 			break
 		}
-	}
+	}*/
 
 	workerInfo.Lock.Lock()
 	master := workerInfo.MasterHost
