@@ -5,6 +5,16 @@ import (
 )
 
 func SDFSDownloadFile(filename string, host HostInfo) ([]byte, int, error) {
+	// try to get file from local replica
+	_, deleteFlag, length, content, err := SDFSReadFile(filename)
+	if err == nil {
+		if deleteFlag {
+			return nil, 0, errors.New("file not exist")
+		} else {
+			return content, length, nil
+		}
+	}
+
 	args := &ArgClientGetFile{filename}
 	reply := new(ReplyClientGetFile)
 
@@ -18,7 +28,7 @@ func SDFSDownloadFile(filename string, host HostInfo) ([]byte, int, error) {
 
 	go CallRpcClientGeneral(task)
 
-	err := <-task.Chan
+	err = <-task.Chan
 	if err == nil && !reply.Flag {
 		err = errors.New(reply.ErrStr)
 	}
