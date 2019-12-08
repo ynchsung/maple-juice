@@ -390,11 +390,18 @@ func MapTaskWriteIntermediateFiles() {
 				for key, list := range sendMp {
 					fn := prefix + "_" + key
 					content, _ := json.Marshal(list)
-					finish, _, err := SDFSUploadFile(Cfg.Self, fn, content, true)
-					if err != nil {
-						log.Printf("[Error][Map-worker] cannot write intermediate file %v: %v", fn, err)
-					} else if !finish {
-						log.Printf("[Error][Map-worker] write intermediate file didn't finish, this should not happen")
+
+					retry := 0
+					for ; retry < 10; retry++ {
+						finish, _, err := SDFSUploadFile(Cfg.Self, fn, content, true)
+						if err == nil && finish {
+							break
+						}
+						time.Sleep(500 * time.Millisecond)
+					}
+
+					if retry == 10 {
+						log.Printf("[Error][Map-worker] cannot write intermediate file %v, retry 10 times still fail", fn)
 					}
 
 					cc += 1
