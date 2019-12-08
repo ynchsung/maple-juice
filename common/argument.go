@@ -94,7 +94,7 @@ type ArgMapTaskPrepareWorker struct {
 }
 
 type ArgMapTaskDispatch struct {
-	InputFilename string
+	InputFilenameList []string
 }
 
 type ArgMapTaskSendKeyValues struct {
@@ -137,7 +137,7 @@ type ArgReduceTaskPrepareWorker struct {
 }
 
 type ArgReduceTaskDispatch struct {
-	IntermediateFilename string
+	IntermediateFilenameList []string
 }
 
 type ArgReduceTaskNotifyMaster struct {

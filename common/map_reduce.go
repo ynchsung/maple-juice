@@ -404,7 +404,7 @@ func MapTaskWriteIntermediateFiles() {
 
 		workerInfo.Lock.Unlock()
 
-		thread_num := 32
+		thread_num := 64
 		sendArr := make([]map[string][]MapReduceKeyValue, thread_num)
 		for i := 0; i < thread_num; i++ {
 			sendArr[i] = make(map[string][]MapReduceKeyValue)

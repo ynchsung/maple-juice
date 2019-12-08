@@ -191,23 +191,34 @@ func (t *RpcS2S) MemberFailure(args *ArgMemberFailure, reply *ReplyMemberFailure
 					masterInfo.State = MASTER_STATE_MAP_WAIT_FOR_TASK
 
 					// send MapTaskDispatch
+					resendArr := make([][]string, N)
+					for i := 0; i < N; i++ {
+						resendArr[i] = make([]string, 0)
+					}
+
 					idx := 0
 					for _, filename := range masterInfo.DispatchFileMap[args.FailureInfo.Host] {
-						target_worker := masterInfo.WorkerList[idx]
-						task := &RpcAsyncCallerTask{
-							"MapTaskDispatch",
-							target_worker.Info,
-							&ArgMapTaskDispatch{filename},
-							new(ReplyMapTaskDispatch),
-							make(chan error),
-						}
-
-						go CallRpcS2SGeneral(task)
-
-						tasks = append(tasks, task)
-
-						masterInfo.DispatchFileMap[target_worker.Info.Host] = append(masterInfo.DispatchFileMap[target_worker.Info.Host], filename)
+						resendArr[idx] = append(resendArr[idx], filename)
 						idx = (idx + 1) % N
+					}
+
+					for i := 0; i < N; i++ {
+						if len(resendArr[i]) > 0 {
+							target_worker := masterInfo.WorkerList[i]
+							task := &RpcAsyncCallerTask{
+								"MapTaskDispatch",
+								target_worker.Info,
+								&ArgMapTaskDispatch{resendArr[i]},
+								new(ReplyMapTaskDispatch),
+								make(chan error),
+							}
+
+							go CallRpcS2SGeneral(task)
+
+							tasks = append(tasks, task)
+
+							masterInfo.DispatchFileMap[target_worker.Info.Host] = append(masterInfo.DispatchFileMap[target_worker.Info.Host], resendArr[i]...)
+						}
 					}
 
 					delete(masterInfo.DispatchFileMap, args.FailureInfo.Host)
@@ -217,23 +228,34 @@ func (t *RpcS2S) MemberFailure(args *ArgMemberFailure, reply *ReplyMemberFailure
 					// reduce task: need to re-dispatch intermediate files
 
 					// send ReduceTaskDispatch
+					resendArr := make([][]string, N)
+					for i := 0; i < N; i++ {
+						resendArr[i] = make([]string, 0)
+					}
+
 					idx := 0
 					for _, filename := range masterInfo.DispatchFileMap2[args.FailureInfo.Host] {
-						target_worker := masterInfo.WorkerList[idx]
-						task := &RpcAsyncCallerTask{
-							"ReduceTaskDispatch",
-							target_worker.Info,
-							&ArgReduceTaskDispatch{filename},
-							new(ReplyReduceTaskDispatch),
-							make(chan error),
-						}
-
-						go CallRpcS2SGeneral(task)
-
-						tasks = append(tasks, task)
-
-						masterInfo.DispatchFileMap2[target_worker.Info.Host] = append(masterInfo.DispatchFileMap2[target_worker.Info.Host], filename)
+						resendArr[idx] = append(resendArr[idx], filename)
 						idx = (idx + 1) % N
+					}
+
+					for i := 0; i < N; i++ {
+						if len(resendArr[i]) > 0 {
+							target_worker := masterInfo.WorkerList[i]
+							task := &RpcAsyncCallerTask{
+								"ReduceTaskDispatch",
+								target_worker.Info,
+								&ArgReduceTaskDispatch{resendArr[i]},
+								new(ReplyReduceTaskDispatch),
+								make(chan error),
+							}
+
+							go CallRpcS2SGeneral(task)
+
+							tasks = append(tasks, task)
+
+							masterInfo.DispatchFileMap2[target_worker.Info.Host] = append(masterInfo.DispatchFileMap2[target_worker.Info.Host], resendArr[i]...)
+						}
 					}
 
 					delete(masterInfo.DispatchFileMap2, args.FailureInfo.Host)
@@ -568,19 +590,17 @@ func (t *RpcS2S) MapTaskStart(args *ArgMapTaskStart, reply *ReplyMapTaskStart) e
 	// send MapTaskDispatch
 	tasks = make([]*RpcAsyncCallerTask, 0)
 	for _, worker := range masterInfo.WorkerList {
-		for _, filename := range masterInfo.DispatchFileMap[worker.Info.Host] {
-			task := &RpcAsyncCallerTask{
-				"MapTaskDispatch",
-				worker.Info,
-				&ArgMapTaskDispatch{filename},
-				new(ReplyMapTaskDispatch),
-				make(chan error),
-			}
-
-			go CallRpcS2SGeneral(task)
-
-			tasks = append(tasks, task)
+		task := &RpcAsyncCallerTask{
+			"MapTaskDispatch",
+			worker.Info,
+			&ArgMapTaskDispatch{masterInfo.DispatchFileMap[worker.Info.Host]},
+			new(ReplyMapTaskDispatch),
+			make(chan error),
 		}
+
+		go CallRpcS2SGeneral(task)
+
+		tasks = append(tasks, task)
 	}
 	masterInfo.State = MASTER_STATE_MAP_WAIT_FOR_TASK
 	masterInfo.Lock.Unlock()
@@ -739,7 +759,9 @@ func (t *RpcS2S) MapTaskPrepareWorker(args *ArgMapTaskPrepareWorker, reply *Repl
 
 func (t *RpcS2S) MapTaskDispatch(args *ArgMapTaskDispatch, reply *ReplyMapTaskDispatch) error {
 	MapReduceTaskQueueMux.Lock()
-	MapReduceTaskQueue = append(MapReduceTaskQueue, &MapReduceTaskInfo{args.InputFilename, "map"})
+	for _, filename := range args.InputFilenameList {
+		MapReduceTaskQueue = append(MapReduceTaskQueue, &MapReduceTaskInfo{filename, "map"})
+	}
 	MapReduceTaskQueueMux.Unlock()
 
 	reply.Flag = true
@@ -1018,19 +1040,17 @@ func (t *RpcS2S) ReduceTaskStart(args *ArgReduceTaskStart, reply *ReplyReduceTas
 	// send ReduceTaskDispatch
 	tasks = make([]*RpcAsyncCallerTask, 0)
 	for _, worker := range masterInfo.WorkerList {
-		for _, filename := range masterInfo.DispatchFileMap2[worker.Info.Host] {
-			task := &RpcAsyncCallerTask{
-				"ReduceTaskDispatch",
-				worker.Info,
-				&ArgReduceTaskDispatch{filename},
-				new(ReplyReduceTaskDispatch),
-				make(chan error),
-			}
-
-			go CallRpcS2SGeneral(task)
-
-			tasks = append(tasks, task)
+		task := &RpcAsyncCallerTask{
+			"ReduceTaskDispatch",
+			worker.Info,
+			&ArgReduceTaskDispatch{masterInfo.DispatchFileMap2[worker.Info.Host]},
+			new(ReplyReduceTaskDispatch),
+			make(chan error),
 		}
+
+		go CallRpcS2SGeneral(task)
+
+		tasks = append(tasks, task)
 	}
 	masterInfo.State = MASTER_STATE_REDUCE_WAIT_FOR_TASK
 	masterInfo.Lock.Unlock()
@@ -1183,7 +1203,9 @@ func (t *RpcS2S) ReduceTaskPrepareWorker(args *ArgReduceTaskPrepareWorker, reply
 
 func (t *RpcS2S) ReduceTaskDispatch(args *ArgReduceTaskDispatch, reply *ReplyReduceTaskDispatch) error {
 	MapReduceTaskQueueMux.Lock()
-	MapReduceTaskQueue = append(MapReduceTaskQueue, &MapReduceTaskInfo{args.IntermediateFilename, "reduce"})
+	for _, filename := range args.IntermediateFilenameList {
+		MapReduceTaskQueue = append(MapReduceTaskQueue, &MapReduceTaskInfo{filename, "reduce"})
+	}
 	MapReduceTaskQueueMux.Unlock()
 
 	reply.Flag = true
