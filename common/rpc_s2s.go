@@ -738,7 +738,9 @@ func (t *RpcS2S) MapTaskPrepareWorker(args *ArgMapTaskPrepareWorker, reply *Repl
 }
 
 func (t *RpcS2S) MapTaskDispatch(args *ArgMapTaskDispatch, reply *ReplyMapTaskDispatch) error {
-	go MapTask(args.InputFilename)
+	MapReduceTaskQueueMux.Lock()
+	MapReduceTaskQueue = append(MapReduceTaskQueue, &MapReduceTaskInfo{args.InputFilename, "map"})
+	MapReduceTaskQueueMux.Unlock()
 
 	reply.Flag = true
 	reply.ErrStr = ""
@@ -1173,7 +1175,9 @@ func (t *RpcS2S) ReduceTaskPrepareWorker(args *ArgReduceTaskPrepareWorker, reply
 }
 
 func (t *RpcS2S) ReduceTaskDispatch(args *ArgReduceTaskDispatch, reply *ReplyReduceTaskDispatch) error {
-	go ReduceTask(args.IntermediateFilename)
+	MapReduceTaskQueueMux.Lock()
+	MapReduceTaskQueue = append(MapReduceTaskQueue, &MapReduceTaskInfo{args.IntermediateFilename, "reduce"})
+	MapReduceTaskQueueMux.Unlock()
 
 	reply.Flag = true
 	reply.ErrStr = ""

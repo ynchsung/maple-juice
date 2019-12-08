@@ -15,7 +15,7 @@ func maple(line string) []common.MapReduceKeyValue {
 	ret := make([]common.MapReduceKeyValue, 0)
 
 	strs := regexp.MustCompile("\t| ").Split(line, -1)
-	re := regexp.MustCompile("[a-zA-Z]+")
+	re := regexp.MustCompile("^[a-zA-Z]+$")
 	for _, str := range strs {
 		if len(str) > 0 && re.MatchString(str) {
 			ret = append(ret, common.MapReduceKeyValue{strings.ToLower(str), "1"})

@@ -104,6 +104,39 @@ var (
 	}
 )
 
+type MapReduceTaskInfo struct {
+	Filename string
+	Type     string
+}
+
+var (
+	MapReduceTaskQueue    []*MapReduceTaskInfo = make([]*MapReduceTaskInfo, 0)
+	MapReduceTaskQueueMux sync.Mutex
+)
+
+func MapReduceTaskQueueConsumer() {
+	for {
+		var task *MapReduceTaskInfo = nil
+
+		MapReduceTaskQueueMux.Lock()
+		if len(MapReduceTaskQueue) > 0 {
+			task = MapReduceTaskQueue[0]
+			MapReduceTaskQueue = MapReduceTaskQueue[1:]
+		}
+		MapReduceTaskQueueMux.Unlock()
+
+		if task != nil {
+			if task.Type == "map" {
+				MapTask(task.Filename)
+			} else {
+				ReduceTask(task.Filename)
+			}
+		}
+
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
 func MapTask(filename string) {
 	// download input file from sdfs
 	//content, length, err := SDFSDownloadFile(filename, Cfg.Self)
