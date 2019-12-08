@@ -606,7 +606,7 @@ func (t *RpcS2S) MapTaskStart(args *ArgMapTaskStart, reply *ReplyMapTaskStart) e
 					flag = false
 				}
 				if xx%30 == 0 {
-					fmt.Printf("<%v: %v/%v>", key, value, len(masterInfo.DispatchFileMap[key]))
+					fmt.Printf("<%v: %v/%v>\n", key, value, len(masterInfo.DispatchFileMap[key]))
 				}
 			}
 			if xx%30 == 0 {
@@ -643,9 +643,9 @@ func (t *RpcS2S) MapTaskStart(args *ArgMapTaskStart, reply *ReplyMapTaskStart) e
 			for key, value := range masterInfo.IntermediateDoneCounter {
 				if value != 1 {
 					flag = false
-					if xx%30 == 0 {
-						fmt.Printf("<%v: %v/%v>", key, value, 1)
-					}
+				}
+				if xx%30 == 0 {
+					fmt.Printf("<%v: %v/%v>\n", key, value, 1)
 				}
 			}
 			if xx%30 == 0 {
@@ -1041,7 +1041,9 @@ func (t *RpcS2S) ReduceTaskStart(args *ArgReduceTaskStart, reply *ReplyReduceTas
 		close(task.Chan)
 	}
 
+	xx := -1
 	for {
+		xx += 1
 		tasks = make([]*RpcAsyncCallerTask, 0)
 
 		masterInfo.Lock.Lock()
@@ -1051,8 +1053,13 @@ func (t *RpcS2S) ReduceTaskStart(args *ArgReduceTaskStart, reply *ReplyReduceTas
 		for key, _ := range masterInfo.ResultFileMap {
 			if len(masterInfo.ResultFileMap[key]) != len(masterInfo.DispatchFileMap2[key]) {
 				flag = false
-				break
 			}
+			if xx%30 == 0 {
+				fmt.Printf("<%v: %v/%v>\n", key, len(masterInfo.ResultFileMap[key]), len(masterInfo.DispatchFileMap2[key]))
+			}
+		}
+		if xx%30 == 0 {
+			fmt.Printf("\n")
 		}
 		if flag {
 			masterInfo.State = MASTER_STATE_REDUCE_TASK_DONE

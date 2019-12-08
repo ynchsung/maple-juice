@@ -264,7 +264,7 @@ func SDFSReadFile(filename string) (int, bool, int, []byte, error) {
 
 	content, err := ReadFile(val.StorePath)
 	if err != nil {
-		return -1, true, 0, nil, errors.New("read file error")
+		return -1, true, 0, nil, err
 	}
 
 	return val.Version, false, len(content), content, nil
