@@ -94,6 +94,34 @@ func SDFSUploadFile(host HostInfo, filename string, content []byte, force bool) 
 	return finish, false, nil
 }
 
+func SDFSUploadFile2(host HostInfo, filename string, content [][]byte, length int, force bool) (bool, bool, error) {
+	token := GenRandomString(16)
+
+	// prepare chunk
+	finish := false
+	offset := 0
+	for _, sub_content := range content {
+		end := offset + len(sub_content)
+
+		reply, err := SDFSUploadFileChunk(host, token, filename, length, offset, sub_content, force)
+		if err != nil {
+			return false, false, err
+		}
+
+		if !reply.Flag {
+			return false, reply.NeedForce, errors.New(reply.ErrStr)
+		}
+
+		if reply.Finish {
+			finish = true
+		}
+
+		offset = end
+	}
+
+	return finish, false, nil
+}
+
 func SDFSDeleteFile(host HostInfo, filename string, force bool) (bool, bool, error) {
 	args := &ArgClientUpdateFile{
 		GenRandomString(16),

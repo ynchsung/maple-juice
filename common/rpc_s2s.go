@@ -1116,23 +1116,43 @@ func (t *RpcS2S) ReduceTaskStart(args *ArgReduceTaskStart, reply *ReplyReduceTas
 		time.Sleep(1 * time.Second)
 	}
 
+	masterInfo.Lock.Lock()
+
 	// put all results into args.OutputFilename
 	results := make([]MapReduceKeyValue, 0)
-	for _, mp := range masterInfo.ResultFileMap {
-		for _, arr := range mp {
+	for host, mp := range masterInfo.ResultFileMap {
+		for fn, arr := range mp {
 			results = append(results, arr...)
+			masterInfo.ResultFileMap[host][fn] = nil
 		}
+		masterInfo.ResultFileMap[host] = nil
 	}
+
+	masterInfo.Lock.Unlock()
+
 	sort.SliceStable(results, func(i, j int) bool {
 		return results[i].Key < results[j].Key
 	})
 
-	content := ""
+	total_length := 0
+	content := make([][]byte, 0)
+	sub_content := ""
 	for _, obj := range results {
-		content = content + obj.Key + "\t" + obj.Value + "\n"
+		sub_content = sub_content + obj.Key + "\t" + obj.Value + "\n"
+		if len(sub_content) >= SDFS_MAX_BUFFER_SIZE-1000 {
+			tmp := []byte(sub_content)
+			content = append(content, tmp)
+			total_length += len(tmp)
+			sub_content = ""
+		}
+	}
+	if len(sub_content) > 0 {
+		tmp := []byte(sub_content)
+		content = append(content, tmp)
+		total_length += len(tmp)
 	}
 
-	finish, _, err := SDFSUploadFile(Cfg.Self, args.OutputFilename, []byte(content), true)
+	finish, _, err := SDFSUploadFile2(Cfg.Self, args.OutputFilename, content, total_length, true)
 	if err != nil {
 		log.Printf("[Error][Reduce-master] cannot write output file %v: %v", args.OutputFilename, err)
 		reply.Flag = false
