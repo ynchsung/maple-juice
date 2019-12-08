@@ -3,6 +3,8 @@ package common
 import (
 	"fmt"
 	"log"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"time"
@@ -234,9 +236,19 @@ func (t *RpcS2S) MemberFailure(args *ArgMemberFailure, reply *ReplyMemberFailure
 					}
 
 					idx := 0
+					idx2 := 0
 					for _, filename := range masterInfo.DispatchFileMap2[args.FailureInfo.Host] {
-						resendArr[idx] = append(resendArr[idx], filename)
-						idx = (idx + 1) % N
+						re, ok := masterInfo.ResultFileMap[args.FailureInfo.Host][filename]
+						if !ok {
+							resendArr[idx] = append(resendArr[idx], filename)
+							idx = (idx + 1) % N
+						} else {
+							// no need to re-dispatch the reduce task if master has the result
+							h := masterInfo.WorkerList[idx2].Info.Host
+							masterInfo.DispatchFileMap2[h] = append(masterInfo.DispatchFileMap2[h], filename)
+							masterInfo.ResultFileMap[h][filename] = re
+							idx2 = (idx2 + 1) % N
+						}
 					}
 
 					for i := 0; i < N; i++ {
@@ -463,8 +475,6 @@ func (t *RpcS2S) MapTaskStart(args *ArgMapTaskStart, reply *ReplyMapTaskStart) e
 	 * when receive this rpc
 	 * it means I am master node
 	 */
-
-	// TODO: check args.ExecFilename exists on the cluster
 
 	masterInfo.Lock.Lock()
 
@@ -917,8 +927,6 @@ func (t *RpcS2S) ReduceTaskStart(args *ArgReduceTaskStart, reply *ReplyReduceTas
 	 * it means I am master node
 	 */
 
-	// TODO: check args.ExecFilename exists on the cluster
-
 	masterInfo.Lock.Lock()
 
 	if masterInfo.State != MASTER_STATE_NONE && masterInfo.State != MASTER_STATE_MAP_TASK_DONE && masterInfo.State != MASTER_STATE_REDUCE_TASK_DONE {
@@ -1136,33 +1144,26 @@ func (t *RpcS2S) ReduceTaskStart(args *ArgReduceTaskStart, reply *ReplyReduceTas
 		return results[i].Key < results[j].Key
 	})
 
-	total_length := 0
-	content := make([][]byte, 0)
-	sub_content := ""
+	// write file to prevent memory issue
+	outputPath := filepath.Join("./", Cfg.MapReduceWorkDir, SDFSGenerateRandomFilename(8))
+	fp, _ := os.OpenFile(outputPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0755)
+
 	for _, obj := range results {
-		sub_content = sub_content + obj.Key + "\t" + obj.Value + "\n"
-		if len(sub_content) >= SDFS_MAX_BUFFER_SIZE-1000 {
-			tmp := []byte(sub_content)
-			content = append(content, tmp)
-			total_length += len(tmp)
-			sub_content = ""
-		}
-	}
-	if len(sub_content) > 0 {
-		tmp := []byte(sub_content)
-		content = append(content, tmp)
-		total_length += len(tmp)
+		fp.Write([]byte(obj.Key))
+		fp.Write([]byte("\t"))
+		fp.Write([]byte(obj.Value))
+		fp.Write([]byte("\n"))
 	}
 
-	finish, _, err := SDFSUploadFile2(Cfg.Self, args.OutputFilename, content, total_length, true)
+	fp.Close()
+
+	cmd := exec.Command("./client", "put_file", Cfg.Self.Host, Cfg.Self.Port, outputPath, args.OutputFilename)
+	err := cmd.Run()
 	if err != nil {
+		fmt.Printf("Write output file error %v\n", err)
 		log.Printf("[Error][Reduce-master] cannot write output file %v: %v", args.OutputFilename, err)
 		reply.Flag = false
 		reply.ErrStr = err.Error()
-	} else if !finish {
-		log.Printf("[Error][Reduce-master] write output file didn't finish, this should not happen")
-		reply.Flag = false
-		reply.ErrStr = "write output file didn't finish, this should not happen"
 	} else {
 		log.Printf("[Info][Reduce-master] write output file %v success", args.OutputFilename)
 		reply.Flag = true

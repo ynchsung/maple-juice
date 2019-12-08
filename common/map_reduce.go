@@ -307,7 +307,7 @@ func MapTaskIntermediateFileWriteThread(prefix string, sendMp map[string][]MapRe
 		}
 
 		cc += 1
-		if cc%1000 == 0 {
+		if cc%100 == 1 {
 			fmt.Printf("write intermediate file %v/%v\n", cc, NN)
 		}
 	}
@@ -441,8 +441,8 @@ func MapTaskWriteIntermediateFiles() {
 			sendArr[i] = make(map[string][]MapReduceKeyValue)
 		}
 
-		ii := 0
 		fmt.Printf("Intermediate file count %v\n", len(bucket))
+		ii := 0
 		for key, list := range bucket {
 			sendArr[ii][key] = list
 			ii = (ii + 1) % thread_num
@@ -486,24 +486,16 @@ func ReduceTask(filename string) {
 		return
 	}
 
-	// fmt.Printf("go reduce %v\n", filename)
-
 	// process input file
 	cmd := exec.Command(workerInfo.ExecFilePath)
-	stdin, err := cmd.StdinPipe()
-	if err != nil {
-		fmt.Printf("%v error: %v\n", filename, err)
-	}
+	stdin, _ := cmd.StdinPipe()
 
 	go func() {
 		defer stdin.Close()
 		io.WriteString(stdin, string(content[0:length]))
 	}()
 
-	out, err := cmd.Output()
-	if err != nil {
-		fmt.Printf("%v error 2: %v\n", filename, err)
-	}
+	out, _ := cmd.Output()
 	var outputKeyValue []MapReduceKeyValue
 	_ = json.Unmarshal(out, &outputKeyValue)
 
