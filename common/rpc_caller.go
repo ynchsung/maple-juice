@@ -57,6 +57,7 @@ func CallRpcS2SGrepFile(host string, port string, args *ArgGrep, reply *ReplyGre
 
 	err = client.Call("RpcS2S.GrepFile", args, reply)
 	c <- err
+	client.Close()
 }
 
 func CallRpcS2SWriteFile(host string, port string, args *ArgWriteFile, reply *ReplyWriteFile, c chan error) {
@@ -76,4 +77,5 @@ func CallRpcS2SWriteFile(host string, port string, args *ArgWriteFile, reply *Re
 
 	err = client.Call("RpcS2S.WriteFile", args, reply)
 	c <- err
+	client.Close()
 }

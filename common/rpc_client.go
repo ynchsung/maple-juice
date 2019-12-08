@@ -20,7 +20,6 @@ type UpdateFileRequest struct {
 	Lock             sync.RWMutex
 }
 
-// TODO: add a queue to wait tasks
 var (
 	RpcAsyncCallerTaskWaitQueue    []*RpcAsyncCallerTask
 	RpcAsyncCallerTaskWaitQueueMux sync.Mutex
@@ -30,6 +29,33 @@ var (
 )
 
 type RpcClient struct {
+}
+
+func RpcAsyncCallerWaiter() {
+	for {
+		var task *RpcAsyncCallerTask = nil
+
+		RpcAsyncCallerTaskWaitQueueMux.Lock()
+		if len(RpcAsyncCallerTaskWaitQueue) > 0 {
+			task = RpcAsyncCallerTaskWaitQueue[0]
+			RpcAsyncCallerTaskWaitQueue = RpcAsyncCallerTaskWaitQueue[1:]
+		}
+		RpcAsyncCallerTaskWaitQueueMux.Unlock()
+
+		if task != nil {
+			select {
+			case <-task.Chan:
+				close(task.Chan)
+				// ignore error
+			case <-time.After(100 * time.Millisecond):
+				RpcAsyncCallerTaskWaitQueueMux.Lock()
+				RpcAsyncCallerTaskWaitQueue = append(RpcAsyncCallerTaskWaitQueue, task)
+				RpcAsyncCallerTaskWaitQueueMux.Unlock()
+			}
+		}
+
+		time.Sleep(time.Millisecond * 400)
+	}
 }
 
 //////////////////////////////////////////////

@@ -96,5 +96,7 @@ func main() {
 	go HeartbeatSender()
 	go HeartbeatMonitor()
 
+	go common.RpcAsyncCallerWaiter()
+
 	select {}
 }
