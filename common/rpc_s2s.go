@@ -1119,10 +1119,12 @@ func (t *RpcS2S) ReduceTaskStart(args *ArgReduceTaskStart, reply *ReplyReduceTas
 	masterInfo.Lock.Lock()
 
 	// put all results into args.OutputFilename
-	results := make([]MapReduceKeyValue, 0)
+	results := make([]*MapReduceKeyValue, 0)
 	for host, mp := range masterInfo.ResultFileMap {
 		for fn, arr := range mp {
-			results = append(results, arr...)
+			for _, obj := range arr {
+				results = append(results, &obj)
+			}
 			masterInfo.ResultFileMap[host][fn] = nil
 		}
 		masterInfo.ResultFileMap[host] = nil
@@ -1130,7 +1132,7 @@ func (t *RpcS2S) ReduceTaskStart(args *ArgReduceTaskStart, reply *ReplyReduceTas
 
 	masterInfo.Lock.Unlock()
 
-	sort.SliceStable(results, func(i, j int) bool {
+	sort.Slice(results, func(i, j int) bool {
 		return results[i].Key < results[j].Key
 	})
 

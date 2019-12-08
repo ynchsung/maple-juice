@@ -119,11 +119,13 @@ func MapReduceTaskQueueConsumer() {
 		var task *MapReduceTaskInfo = nil
 
 		MapReduceTaskQueueMux.Lock()
-		if len(MapReduceTaskQueue) > 0 {
+		NN := len(MapReduceTaskQueue)
+		if NN > 0 {
 			task = MapReduceTaskQueue[0]
 			MapReduceTaskQueue = MapReduceTaskQueue[1:]
-			if len(MapReduceTaskQueue) == 0 {
-				fmt.Printf("MapReduceTaskQueue empty\n")
+			NN -= 1
+			if NN%100 == 0 {
+				fmt.Printf("MapReduceTaskQueue size %v\n", NN)
 			}
 		}
 		MapReduceTaskQueueMux.Unlock()
@@ -284,6 +286,35 @@ func MapTask(filename string) {
 	}
 }
 
+func MapTaskIntermediateFileWriteThread(prefix string, sendMp map[string][]MapReduceKeyValue, c chan error) {
+	cc := 0
+	NN := len(sendMp)
+	for key, list := range sendMp {
+		fn := prefix + "_" + key
+		content, _ := json.Marshal(list)
+
+		retry := 0
+		for ; retry < 10; retry++ {
+			finish, _, err := SDFSUploadFile(Cfg.Self, fn, content, true)
+			if err == nil && finish {
+				break
+			}
+			time.Sleep(500 * time.Millisecond)
+		}
+
+		if retry == 10 {
+			log.Printf("[Error][Map-worker] cannot write intermediate file %v, retry 10 times still fail", fn)
+		}
+
+		cc += 1
+		if cc%1000 == 0 {
+			fmt.Printf("write intermediate file %v/%v\n", cc, NN)
+		}
+	}
+
+	c <- nil
+}
+
 func MapTaskWriteIntermediateFiles() {
 	token := ""
 
@@ -420,34 +451,7 @@ func MapTaskWriteIntermediateFiles() {
 		chans := make([]chan error, thread_num)
 		for i := 0; i < thread_num; i++ {
 			chans[i] = make(chan error)
-			go func(sendMp map[string][]MapReduceKeyValue, c chan error) {
-				cc := 0
-				NN := len(sendMp)
-				for key, list := range sendMp {
-					fn := prefix + "_" + key
-					content, _ := json.Marshal(list)
-
-					retry := 0
-					for ; retry < 10; retry++ {
-						finish, _, err := SDFSUploadFile(Cfg.Self, fn, content, true)
-						if err == nil && finish {
-							break
-						}
-						time.Sleep(500 * time.Millisecond)
-					}
-
-					if retry == 10 {
-						log.Printf("[Error][Map-worker] cannot write intermediate file %v, retry 10 times still fail", fn)
-					}
-
-					cc += 1
-					if cc%1000 == 0 {
-						fmt.Printf("write intermediate file %v/%v\n", cc, NN)
-					}
-				}
-
-				c <- nil
-			}(sendArr[i], chans[i])
+			go MapTaskIntermediateFileWriteThread(prefix, sendArr[i], chans[i])
 		}
 
 		for _, c := range chans {
@@ -482,7 +486,7 @@ func ReduceTask(filename string) {
 		return
 	}
 
-	fmt.Printf("go reduce %v\n", filename)
+	// fmt.Printf("go reduce %v\n", filename)
 
 	// process input file
 	cmd := exec.Command(workerInfo.ExecFilePath)

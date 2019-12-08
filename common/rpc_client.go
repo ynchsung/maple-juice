@@ -86,7 +86,7 @@ func (t *RpcClient) GrepFile(args *ArgGrep, reply *ReplyGrepList) error {
 		err := <-task.Chan
 		close(task.Chan)
 		if err != nil {
-			log.Printf("[Error] Fail to send GrepFile to %v: %v",
+			log.Printf("[Warn] Fail to send GrepFile to %v: %v",
 				task.Info.Host,
 				err,
 			)
