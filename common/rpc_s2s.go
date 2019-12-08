@@ -337,10 +337,12 @@ func (t *RpcS2S) UpdateFileVersion(args *ArgUpdateFileVersion, reply *ReplyUpdat
 			args.Filename,
 			version,
 		)
-		fmt.Printf("UpdateFileVersion: file %v, new version %v\n",
-			args.Filename,
-			version,
-		)
+		/*
+			fmt.Printf("UpdateFileVersion: file %v, new version %v\n",
+				args.Filename,
+				version,
+			)
+		*/
 	}
 	return nil
 }
@@ -390,11 +392,13 @@ func (t *RpcS2S) GetFile(args *ArgGetFile, reply *ReplyGetFile) error {
 			reply.Version,
 			reply.DeleteFlag,
 		)
-		fmt.Printf("GetFile: read file %v success (version %v, delete %v)\n",
-			args.Filename,
-			reply.Version,
-			reply.DeleteFlag,
-		)
+		/*
+			fmt.Printf("GetFile: read file %v success (version %v, delete %v)\n",
+				args.Filename,
+				reply.Version,
+				reply.DeleteFlag,
+			)
+		*/
 	} else {
 		reply.Flag = false
 		reply.ErrStr = err.Error()
@@ -403,10 +407,12 @@ func (t *RpcS2S) GetFile(args *ArgGetFile, reply *ReplyGetFile) error {
 			args.Filename,
 			err,
 		)
-		fmt.Printf("GetFile: read file %v error (%v)\n",
-			args.Filename,
-			err,
-		)
+		/*
+			fmt.Printf("GetFile: read file %v error (%v)\n",
+				args.Filename,
+				err,
+			)
+		*/
 	}
 
 	return nil

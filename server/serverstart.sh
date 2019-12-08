@@ -1,2 +1,2 @@
-rm -f sdfs/* work/* machine.log
+rm -rf sdfs/* work/* machine.log
 ./server

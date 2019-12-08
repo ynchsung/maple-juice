@@ -2,6 +2,7 @@ package common
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"os/exec"
@@ -383,6 +384,8 @@ func MapTaskWriteIntermediateFiles() {
 		for i := 0; i < thread_num; i++ {
 			chans[i] = make(chan error)
 			go func(sendMp map[string][]MapReduceKeyValue, c chan error) {
+				cc := 0
+				NN := len(sendMp)
 				for key, list := range sendMp {
 					fn := prefix + "_" + key
 					content, _ := json.Marshal(list)
@@ -391,6 +394,11 @@ func MapTaskWriteIntermediateFiles() {
 						log.Printf("[Error][Map-worker] cannot write intermediate file %v: %v", fn, err)
 					} else if !finish {
 						log.Printf("[Error][Map-worker] write intermediate file didn't finish, this should not happen")
+					}
+
+					cc += 1
+					if cc%10000 == 0 {
+						fmt.Printf("write intermediate file %v/%v\n", cc, NN)
 					}
 				}
 

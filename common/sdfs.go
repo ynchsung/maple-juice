@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -61,6 +62,10 @@ var (
 	SDFSStorePathMap    map[string]string = make(map[string]string)
 	SDFSStorePathMapMux sync.Mutex
 
+	SDFSDirectoryNum     int = 0
+	SDFSDirectoryCounter int = 5000
+	SDFSDirectoryNumLock sync.Mutex
+
 	SDFSRandomGenerator *rand.Rand = rand.New(rand.NewSource(time.Now().UnixNano()))
 )
 
@@ -90,11 +95,22 @@ func SDFSGenerateRandomFilename(length int) string {
 }
 
 func SDFSGenerateStorePath(filename string) string {
+	SDFSDirectoryNumLock.Lock()
+	dir_name := filepath.Join(Cfg.SDFSDir, strconv.Itoa(SDFSDirectoryNum))
+	if SDFSDirectoryCounter == 5000 {
+		SDFSDirectoryNum += 1
+		SDFSDirectoryCounter = 0
+		dir_name = filepath.Join(Cfg.SDFSDir, strconv.Itoa(SDFSDirectoryNum))
+		os.MkdirAll(dir_name, 0777)
+	}
+	SDFSDirectoryCounter += 1
+	SDFSDirectoryNumLock.Unlock()
+
 	SDFSStorePathMapMux.Lock()
 	defer SDFSStorePathMapMux.Unlock()
 
 	for {
-		storeStr := filepath.Join(Cfg.SDFSDir, SDFSGenerateRandomFilename(10))
+		storeStr := filepath.Join(dir_name, SDFSGenerateRandomFilename(10))
 		if _, ok := SDFSStorePathMap[storeStr]; !ok {
 			SDFSStorePathMap[storeStr] = filename
 			return storeStr
