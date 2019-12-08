@@ -122,6 +122,9 @@ func MapReduceTaskQueueConsumer() {
 		if len(MapReduceTaskQueue) > 0 {
 			task = MapReduceTaskQueue[0]
 			MapReduceTaskQueue = MapReduceTaskQueue[1:]
+			if len(MapReduceTaskQueue) == 0 {
+				fmt.Printf("MapReduceTaskQueue empty\n")
+			}
 		}
 		MapReduceTaskQueueMux.Unlock()
 
@@ -401,7 +404,7 @@ func MapTaskWriteIntermediateFiles() {
 
 		workerInfo.Lock.Unlock()
 
-		thread_num := 1000
+		thread_num := 32
 		sendArr := make([]map[string][]MapReduceKeyValue, thread_num)
 		for i := 0; i < thread_num; i++ {
 			sendArr[i] = make(map[string][]MapReduceKeyValue)

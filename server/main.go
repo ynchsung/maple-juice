@@ -98,7 +98,7 @@ func main() {
 
 	go common.RpcAsyncCallerWaiter()
 
-	for i := 0; i < 1000; i++ {
+	for i := 0; i < 32; i++ {
 		go common.MapReduceTaskQueueConsumer()
 	}
 
