@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"path/filepath"
+	"sort"
 	"time"
 )
 
@@ -1058,13 +1059,19 @@ func (t *RpcS2S) ReduceTaskStart(args *ArgReduceTaskStart, reply *ReplyReduceTas
 	}
 
 	// put all results into args.OutputFilename
-	content := ""
+	results := make([]MapReduceKeyValue, 0)
 	for _, mp := range masterInfo.ResultFileMap {
 		for _, arr := range mp {
-			for _, obj := range arr {
-				content = content + obj.Key + " " + obj.Value + "\n"
-			}
+			results = append(results, arr...)
 		}
+	}
+	sort.SliceStable(results, func(i, j int) bool {
+		return results[i].Key < results[j].Key
+	})
+
+	content := ""
+	for _, obj := range results {
+		content = content + obj.Key + "\t" + obj.Value + "\n"
 	}
 
 	finish, _, err := SDFSUploadFile(Cfg.Self, args.OutputFilename, []byte(content), true)
