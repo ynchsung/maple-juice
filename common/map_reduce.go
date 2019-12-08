@@ -375,6 +375,7 @@ func MapTaskWriteIntermediateFiles() {
 		}
 
 		ii := 0
+		fmt.Printf("Intermediate file count %v\n", len(bucket))
 		for key, list := range bucket {
 			sendArr[ii][key] = list
 			ii = (ii + 1) % thread_num
@@ -397,7 +398,7 @@ func MapTaskWriteIntermediateFiles() {
 					}
 
 					cc += 1
-					if cc%10000 == 0 {
+					if cc%1000 == 0 {
 						fmt.Printf("write intermediate file %v/%v\n", cc, NN)
 					}
 				}
