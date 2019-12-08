@@ -367,15 +367,40 @@ func MapTaskWriteIntermediateFiles() {
 
 		workerInfo.Lock.Unlock()
 
+		thread_num := 1000
+		sendArr := make([]map[string][]MapReduceKeyValue, thread_num)
+		for i := 0; i < thread_num; i++ {
+			sendArr[i] = make(map[string][]MapReduceKeyValue)
+		}
+
+		ii := 0
 		for key, list := range bucket {
-			fn := prefix + "_" + key
-			content, _ := json.Marshal(list)
-			finish, _, err := SDFSUploadFile(Cfg.Self, fn, content, true)
-			if err != nil {
-				log.Printf("[Error][Map-worker] cannot write intermediate file %v: %v", fn, err)
-			} else if !finish {
-				log.Printf("[Error][Map-worker] write intermediate file didn't finish, this should not happen")
-			}
+			sendArr[ii][key] = list
+			ii = (ii + 1) % thread_num
+		}
+
+		chans := make([]chan error, thread_num)
+		for i := 0; i < thread_num; i++ {
+			chans[i] = make(chan error)
+			go func(sendMp map[string][]MapReduceKeyValue, c chan error) {
+				for key, list := range sendMp {
+					fn := prefix + "_" + key
+					content, _ := json.Marshal(list)
+					finish, _, err := SDFSUploadFile(Cfg.Self, fn, content, true)
+					if err != nil {
+						log.Printf("[Error][Map-worker] cannot write intermediate file %v: %v", fn, err)
+					} else if !finish {
+						log.Printf("[Error][Map-worker] write intermediate file didn't finish, this should not happen")
+					}
+				}
+
+				c <- nil
+			}(sendArr[i], chans[i])
+		}
+
+		for _, c := range chans {
+			<-c
+			close(c)
 		}
 	}
 
