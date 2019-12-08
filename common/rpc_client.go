@@ -58,6 +58,7 @@ func (t *RpcClient) GrepFile(args *ArgGrep, reply *ReplyGrepList) error {
 	// Wait for all RpcAsyncCallerTask
 	for _, task := range tasks {
 		err := <-task.Chan
+		close(task.Chan)
 		if err != nil {
 			log.Printf("[Error] Fail to send GrepFile to %v: %v",
 				task.Info.Host,
@@ -102,6 +103,7 @@ func (t *RpcClient) MemberJoin(args *ArgClientMemberJoin, reply *ReplyClientMemb
 		go CallRpcS2SGeneral(&task)
 
 		err := <-task.Chan
+		close(task.Chan)
 		if err != nil {
 			log.Printf("[Error] Join error: %v", err)
 			reply.Flag = false
@@ -148,6 +150,7 @@ func (t *RpcClient) MemberLeave(args *ArgClientMemberLeave, reply *ReplyClientMe
 	// Wait for all RpcAsyncCallerTask
 	for _, task := range tasks {
 		err := <-task.Chan
+		close(task.Chan)
 		if err != nil {
 			log.Printf("[Error] Fail to send MemberLeave to %v: %v",
 				task.Info.Host,
@@ -207,6 +210,7 @@ func (t *RpcClient) UpdateFile(args *ArgClientUpdateFile, reply *ReplyClientUpda
 			go CallRpcS2SGeneral(task)
 
 			err := <-task.Chan
+			close(task.Chan)
 			if err == nil && !task.Reply.(*ReplyUpdateFileVersion).Flag {
 				err = errors.New(task.Reply.(*ReplyUpdateFileVersion).ErrStr)
 			}
@@ -278,6 +282,7 @@ func (t *RpcClient) UpdateFile(args *ArgClientUpdateFile, reply *ReplyClientUpda
 	// Wait for all RpcAsyncCallerTask
 	for _, task := range tasks {
 		err := <-task.Chan
+		close(task.Chan)
 		if err != nil {
 			log.Printf("[Error] send RpcUpdateFile to %v (file %v, version %v, delete %v, offset %v) error: %v",
 				task.Info.Host,
@@ -345,6 +350,7 @@ func (t *RpcClient) GetFile(args *ArgClientGetFile, reply *ReplyClientGetFile) e
 	for i < SDFS_REPLICA_QUORUM_READ_SIZE && j < len(tasks) {
 		chosen, value, _ := reflect.Select(cases)
 		if tasks[chosen] != nil {
+			close(tasks[chosen].Chan)
 			errInt := value.Interface()
 			if errInt != nil {
 				log.Printf("[Error] Quorum read %v-th node (host %v, file %v) error: %v",
@@ -439,6 +445,7 @@ func (t *RpcClient) ListHostsByFile(args *ArgClientListHostsByFile, reply *Reply
 	// Wait for all RpcAsyncCallerTask
 	for _, task := range tasks {
 		err := <-task.Chan
+		close(task.Chan)
 		if err != nil {
 			log.Printf("[Error] Fail to send ExistFile to %v: %v",
 				task.Info.Host,
@@ -475,6 +482,7 @@ func (t *RpcClient) ListFilesByHost(args *ArgClientListFilesByHost, reply *Reply
 			go CallRpcS2SGeneral(task)
 
 			err := <-task.Chan
+			close(task.Chan)
 			if err == nil {
 				reply.Files = []SDFSFileInfo2(*(task.Reply.(*ReplyListFile)))
 			} else {
@@ -512,6 +520,7 @@ func (t *RpcClient) MapTaskStart(args *ArgMapTaskStart, reply *ReplyMapTaskStart
 	go CallRpcS2SGeneral(task)
 
 	err := <-task.Chan
+	close(task.Chan)
 	if err != nil {
 		log.Printf("[Error] fail to start map task on master node (%v): %v", master.Info.Host, err)
 	}
@@ -538,6 +547,7 @@ func (t *RpcClient) ReduceTaskStart(args *ArgReduceTaskStart, reply *ReplyReduce
 	go CallRpcS2SGeneral(task)
 
 	err := <-task.Chan
+	close(task.Chan)
 	if err != nil {
 		log.Printf("[Error] fail to start reduce task on master node (%v): %v", master.Info.Host, err)
 	}

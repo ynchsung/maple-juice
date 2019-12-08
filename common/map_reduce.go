@@ -241,6 +241,7 @@ func MapTask(filename string) {
 	go CallRpcS2SGeneral(task)
 
 	err = <-task.Chan
+	close(task.Chan)
 	if err != nil {
 		log.Printf("[Error][Map-worker] cannot notify master: %v", err)
 	}
@@ -332,6 +333,7 @@ func MapTaskWriteIntermediateFiles() {
 	// Wait for all RpcAsyncCallerTask
 	for _, task := range tasks {
 		err := <-task.Chan
+		close(task.Chan)
 		if err != nil {
 			success = false
 			log.Printf("[Warn][Map-worker] get key value from %v error: %v (would be recovered later)", task.Info.Host, err)
@@ -386,6 +388,7 @@ func MapTaskWriteIntermediateFiles() {
 
 		for _, c := range chans {
 			<-c
+			close(c)
 		}
 	}
 
@@ -401,6 +404,7 @@ func MapTaskWriteIntermediateFiles() {
 	go CallRpcS2SGeneral(task)
 
 	err := <-task.Chan
+	close(task.Chan)
 	if err != nil {
 		log.Printf("[Error][Map-worker] cannot notify master: %v", err)
 	}
@@ -443,6 +447,7 @@ func ReduceTask(filename string) {
 	go CallRpcS2SGeneral(task)
 
 	err = <-task.Chan
+	close(task.Chan)
 	if err != nil {
 		log.Printf("[Error][Reduce-worker] cannot notify master: %v", err)
 	}

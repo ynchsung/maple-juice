@@ -349,6 +349,7 @@ func SDFSDoReplicaTransferTasks(tasks []*SDFSReplicaTransferTask) {
 				}
 				go CallRpcS2SGeneral(rpcTask)
 				err = <-rpcTask.Chan
+				close(rpcTask.Chan)
 			} else {
 				offset := 0
 				for offset < length {
@@ -368,6 +369,7 @@ func SDFSDoReplicaTransferTasks(tasks []*SDFSReplicaTransferTask) {
 					go CallRpcS2SGeneral(rpcTask)
 
 					err = <-rpcTask.Chan
+					close(rpcTask.Chan)
 					if err != nil {
 						break
 					}
@@ -384,6 +386,7 @@ func SDFSDoReplicaTransferTasks(tasks []*SDFSReplicaTransferTask) {
 	// Wait for all SDFSReplicaTransferTask
 	for _, task := range tasks {
 		err := <-task.Chan
+		close(task.Chan)
 		if err != nil {
 			log.Printf("[Warn] ReplicaTransfer: fail to send replica to %v (%v)",
 				task.Target.Host,

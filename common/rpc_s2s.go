@@ -81,6 +81,7 @@ func (t *RpcS2S) MemberJoin(args *ArgMemberJoin, reply *ReplyMemberJoin) error {
 		// Wait for all RpcAsyncCallerTask
 		for _, task := range tasks {
 			err := <-task.Chan
+			close(task.Chan)
 			if err != nil {
 				log.Printf("[Error] Fail to send MemberJoin to %v: %v",
 					task.Info.Host,
@@ -104,6 +105,7 @@ func (t *RpcS2S) MemberJoin(args *ArgMemberJoin, reply *ReplyMemberJoin) error {
 	go CallRpcS2SGeneral(&task)
 
 	err := <-task.Chan
+	close(task.Chan)
 	if err != nil {
 		log.Printf("[Error] Fail to send MemberAdd to %v: %v",
 			args.Host,
@@ -292,6 +294,7 @@ func (t *RpcS2S) MemberFailure(args *ArgMemberFailure, reply *ReplyMemberFailure
 		// Wait for all RpcAsyncCallerTask
 		for _, task := range tasks {
 			<-task.Chan
+			close(task.Chan)
 		}
 	} else {
 		// if failure machine is myself
@@ -500,6 +503,7 @@ func (t *RpcS2S) MapTaskStart(args *ArgMapTaskStart, reply *ReplyMapTaskStart) e
 	// Wait for all RpcAsyncCallerTask
 	for _, task := range tasks {
 		<-task.Chan
+		close(task.Chan)
 	}
 
 	/*
@@ -531,6 +535,7 @@ func (t *RpcS2S) MapTaskStart(args *ArgMapTaskStart, reply *ReplyMapTaskStart) e
 	// Wait for all RpcAsyncCallerTask
 	for _, task := range tasks {
 		err := <-task.Chan
+		close(task.Chan)
 		// skip error
 		if err == nil {
 			for _, file := range []SDFSFileInfo2(*(task.Reply.(*ReplyListFile))) {
@@ -577,6 +582,7 @@ func (t *RpcS2S) MapTaskStart(args *ArgMapTaskStart, reply *ReplyMapTaskStart) e
 	// Wait for all RpcAsyncCallerTask
 	for _, task := range tasks {
 		<-task.Chan
+		close(task.Chan)
 	}
 
 	xx := -1
@@ -665,6 +671,7 @@ func (t *RpcS2S) MapTaskStart(args *ArgMapTaskStart, reply *ReplyMapTaskStart) e
 		// Wait for all RpcAsyncCallerTask
 		for _, task := range tasks {
 			<-task.Chan
+			close(task.Chan)
 		}
 
 		if finishFlag {
@@ -944,6 +951,7 @@ func (t *RpcS2S) ReduceTaskStart(args *ArgReduceTaskStart, reply *ReplyReduceTas
 	// Wait for all RpcAsyncCallerTask
 	for _, task := range tasks {
 		<-task.Chan
+		close(task.Chan)
 	}
 
 	/*
@@ -975,6 +983,7 @@ func (t *RpcS2S) ReduceTaskStart(args *ArgReduceTaskStart, reply *ReplyReduceTas
 	// Wait for all RpcAsyncCallerTask
 	for _, task := range tasks {
 		err := <-task.Chan
+		close(task.Chan)
 		// skip error
 		if err == nil {
 			for _, file := range []SDFSFileInfo2(*(task.Reply.(*ReplyListFile))) {
@@ -1021,6 +1030,7 @@ func (t *RpcS2S) ReduceTaskStart(args *ArgReduceTaskStart, reply *ReplyReduceTas
 	// Wait for all RpcAsyncCallerTask
 	for _, task := range tasks {
 		<-task.Chan
+		close(task.Chan)
 	}
 
 	for {
@@ -1061,6 +1071,7 @@ func (t *RpcS2S) ReduceTaskStart(args *ArgReduceTaskStart, reply *ReplyReduceTas
 		// Wait for all RpcAsyncCallerTask
 		for _, task := range tasks {
 			<-task.Chan
+			close(task.Chan)
 		}
 
 		if flag {
@@ -1115,6 +1126,7 @@ func (t *RpcS2S) ReduceTaskStart(args *ArgReduceTaskStart, reply *ReplyReduceTas
 
 			for _, ch := range chans {
 				<-ch
+				close(ch)
 			}
 		}
 	}

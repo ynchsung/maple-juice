@@ -88,6 +88,7 @@ func HeartbeatSender() {
 			if hbTask != nil {
 				select {
 				case err := <-hbTask.Chan:
+					close(hbTask.Chan)
 					if err != nil {
 						log.Printf("[Error] Fail to send udp heartbeat to %v (incarnation %v): %v",
 							hbTask.Target.Host,
@@ -191,6 +192,7 @@ func HandleFailure(failure common.MemberInfo, memberListCopy []common.MemberInfo
 	// Wait for all RpcAsyncCallerTask
 	for _, task := range tasks {
 		err := <-task.Chan
+		close(task.Chan)
 		if err != nil && task.Info.Host != failure.Info.Host {
 			log.Printf("[Error] Fail to send MemberFailure to %v: %v",
 				task.Info.Host,
@@ -234,6 +236,7 @@ func HeartbeatMonitor() {
 
 		for _, c := range chans {
 			_ = <-c
+			close(c)
 		}
 
 		time.Sleep(HEARTBEAT_MONITOR_INTERVAL)
