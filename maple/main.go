@@ -34,6 +34,9 @@ func main() {
 			break
 		}
 		N := len(text)
+		if N >= 2 && text[N-2] == '\r' {
+			N -= 1
+		}
 		res := maple(text[0 : N-1])
 		output = append(output, res...)
 	}
