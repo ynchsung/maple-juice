@@ -419,7 +419,7 @@ func maple() {
 	if err != nil {
 		fmt.Printf("Maple error: %v\n", err)
 	} else {
-		fmt.Printf("Maple success")
+		fmt.Printf("Maple success\n")
 	}
 }
 
@@ -461,7 +461,7 @@ func juice() {
 	if err != nil {
 		fmt.Printf("Juice error: %v\n", err)
 	} else {
-		fmt.Printf("Juice success")
+		fmt.Printf("Juice success\n")
 	}
 }
 
